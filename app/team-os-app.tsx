@@ -35,7 +35,11 @@ export function TeamOsApp({ user }: { user: { name: string; email: string } }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
-  const [draftForm, setDraftForm] = useState({ title: "", channel: "Facebook", sourceId: officialSources[0].id });
+  const [draftForm, setDraftForm] = useState<{
+    title: string;
+    channel: string;
+    sourceId: string;
+  }>({ title: "", channel: "Facebook", sourceId: officialSources[0].id });
   const [memberForm, setMemberForm] = useState({ memberName: "", milestone: "72 цаг", nextAction: "", dueLabel: "Өнөөдөр", risk: "normal" });
 
   const loadWorkspace = useCallback(async () => {
@@ -131,7 +135,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string } }) {
         </nav>
         <div className="sidebar-bottom">
           <div className="compliance-status"><span /> Strict mode идэвхтэй</div>
-          <a href="/signout-with-chatgpt?return_to=%2F">Гарах</a>
+          <form action="/auth/signout" method="post"><button type="submit">Гарах</button></form>
         </div>
       </aside>
 

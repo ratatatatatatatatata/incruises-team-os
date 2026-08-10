@@ -40,13 +40,16 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      - name: Type check
+        run: pnpm run typecheck
+
       - name: Build and test
         run: pnpm test
 
-      - name: Upload deploy artifact
+      - name: Upload Next.js build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: team-os-dist-${{ github.sha }}
-          path: dist/
+          name: team-os-next-build-${{ github.sha }}
+          path: .next/
           if-no-files-found: error
           retention-days: 14

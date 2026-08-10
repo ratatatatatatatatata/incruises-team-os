@@ -4,6 +4,17 @@
 
 > Энэ нь багийн дотоод сургалтын хэрэгсэл бөгөөд inCruises-ийн албан ёсны бүтээгдэхүүн биш. Үнэ, урамшуулал, аялал болон бодлогын мэдээллийг нийтлэхийн өмнө албан эх сурвалжаар баталгаажуулна.
 
+## Архитектур
+
+- **Frontend/API:** Next.js 16 App Router
+- **Web hosting:** Vercel
+- **Database:** Supabase Postgres
+- **Authentication:** Supabase Auth SSR cookie
+- **Authorization:** Postgres Row Level Security (RLS)
+- **CI/CD:** GitHub Actions → Vercel
+
+Cloudflare Worker, Vinext болон D1 runtime ашиглахгүй.
+
 ## Үндсэн боломжууд
 
 - Удирдлагын хяналтын төв
@@ -11,44 +22,88 @@
 - Content Studio: draft → review → approved workflow
 - Member Success даалгаврын самбар
 - Албан эх сурвалжийн Source Vault
-- ChatGPT Sites private authentication
-- Cloudflare D1 дээр хэрэглэгч тус бүрээр тусгаарлагдсан өгөгдөл
+- Supabase email/password authentication
+- Хэрэглэгч бүрийн өгөгдлийг тусгаарласан RLS policies
 - Mobile-friendly PWA
-
-## Шаардлага
-
-- Node.js 22.13 буюу түүнээс шинэ
-- pnpm 11.16
 
 ## Локал ажиллуулах
 
+Шаардлага: Node.js 22.13+, pnpm 11.16.
+
 ```bash
+cp .env.example .env.local
 pnpm install --frozen-lockfile
 pnpm run dev
 ```
 
-`http://localhost:3000` хаягаар нээнэ. Local preview нь зөвхөн хөгжүүлэлтийн зориулалттай туршилтын хэрэглэгч ашигладаг.
+`.env.local` файлд Supabase Dashboard → Connect хэсгээс авсан утгыг оруулна:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+```
+
+Publishable key нь frontend-д ашиглагдах зориулалттай боловч хүснэгт бүр RLS-ээр хамгаалагдсан. Service role/secret key-ийг frontend болон repository-д хэзээ ч хадгалахгүй.
+
+## Supabase database
+
+Schema ба RLS policy:
+
+```text
+supabase/migrations/20260810000000_team_os.sql
+```
+
+Supabase CLI-гаар project холбоод migration ажиллуулна:
+
+```bash
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+```
+
+Supabase Auth → URL Configuration хэсэгт дараах redirect URL-уудыг зөвшөөрнө:
+
+```text
+http://localhost:3000/auth/confirm
+https://YOUR_VERCEL_DOMAIN/auth/confirm
+```
+
+Confirm signup email template-ийн холбоосыг дараах хэлбэрээр тохируулна:
+
+```text
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
+```
 
 ## Шалгалт
 
 ```bash
 pnpm run lint
+pnpm run typecheck
 pnpm test
 ```
 
-Pull request болон `main` branch руу хийсэн push бүр дээр GitHub Actions dependency суулгаж, lint, production build, тестийг ажиллуулна. Амжилттай build-ийн `dist/` хавтас deploy artifact хэлбэрээр хадгалагдана.
+Pull request болон `main` push бүр дээр GitHub Actions dependency install, lint, typecheck, production build, test ажиллуулж `.next/` artifact хадгална.
 
-## Deployment
+## Vercel deployment
 
-Одоогийн private production:
+Vercel project-д GitHub repository-г холбоод Supabase-ийн хоёр public environment variable-ийг Preview болон Production орчинд нэмнэ.
 
-- https://incruises-team-os-mn.tumee-jav.chatgpt.site
+GitHub Actions-оос production deploy хийх бол repository secrets-д:
 
-Repository нь ChatGPT Sites/Vinext/Cloudflare Workers орчинд deploy хийхэд бэлэн. Cloudflare-аас GitHub push бүрээр автоматаар deploy хийх бол repository secrets-д `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, мөн production D1 database binding-ийн мэдээллийг нэг удаа тохируулна. Нууц утгыг repository файлд хадгалж болохгүй.
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
 
-## Өгөгдлийн аюулгүй байдал
+гэсэн утгуудыг хадгалж, repository variable `VERCEL_DEPLOY_ENABLED=true` болгоно. Нууц утгыг commit хийж болохгүй.
 
-- Нууц үг, карт, паспортын мэдээлэл хадгалахгүй.
-- Хэрэглэгчийн өгөгдлийг authenticated user ID-аар тусгаарлана.
-- API нь нэвтрээгүй production хүсэлтийг зөвшөөрөхгүй.
-- Generative AI model credential одоогоор холбогдоогүй; Content Studio нь батлагдсан template engine ашигладаг.
+## Legacy deployment
+
+Өмнөх ChatGPT Sites/Cloudflare deployment нь тусдаа legacy production хэвээр байж болно. Supabase schema болон хэрэглэгчийн өгөгдөл түүнээс автоматаар хуулбарлагдахгүй; шинэ Supabase production баталгаажсаны дараа шилжилтийн шийдвэрийг тусад нь гаргана.
+
+## Аюулгүй байдлын үндсэн дүрэм
+
+- Нууц үг, карт, паспортын мэдээлэл application table-д хадгалахгүй.
+- Нууц үгийг Supabase Auth удирдана.
+- Хэрэглэгчийн session-г SSR cookie болон `getClaims()`-ээр баталгаажуулна.
+- Public schema дахь бүх application table RLS идэвхтэй.
+- Generative AI credential одоогоор холбогдоогүй; Content Studio нь батлагдсан template engine ашигладаг.
