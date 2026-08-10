@@ -1,20 +1,31 @@
-import { headers } from "next/headers";
-import { getChatGPTUser, type ChatGPTUser } from "./chatgpt-auth";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { createClient } from "@/lib/supabase/server";
 
-export async function getCurrentTeamOsUser(): Promise<ChatGPTUser | null> {
-  const signedIn = await getChatGPTUser();
-  if (signedIn) return signedIn;
+export type TeamOsUser = {
+  userId: string;
+  displayName: string;
+  email: string;
+};
 
-  const requestHeaders = await headers();
-  const host = requestHeaders.get("host") ?? "";
-  if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) {
-    return {
-      userId: "local-preview-user",
-      displayName: "Багийн удирдагч",
-      email: "preview@team-os.local",
-      fullName: "Багийн удирдагч",
-    };
-  }
+export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
+  if (!isSupabaseConfigured()) return null;
 
-  return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims as Record<string, unknown> | undefined;
+  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+  const email = typeof claims?.email === "string" ? claims.email : null;
+  if (error || !userId || !email) return null;
+
+  const metadata = claims?.user_metadata;
+  const fullName =
+    metadata && typeof metadata === "object" && "full_name" in metadata && typeof metadata.full_name === "string"
+      ? metadata.full_name
+      : null;
+
+  return {
+    userId,
+    email,
+    displayName: fullName ?? email,
+  };
 }
