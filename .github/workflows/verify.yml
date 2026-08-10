@@ -52,4 +52,5 @@ jobs:
           name: team-os-next-build-${{ github.sha }}
           path: .next/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
