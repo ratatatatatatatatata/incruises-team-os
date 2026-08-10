@@ -22,6 +22,12 @@ const statusLabels: Record<string, string> = {
   archived: "Архив",
 };
 
+async function fetchWorkspace(): Promise<WorkspacePayload> {
+  const response = await fetch("/api/workspace", { cache: "no-store" });
+  if (!response.ok) throw new Error("workspace unavailable");
+  return (await response.json()) as WorkspacePayload;
+}
+
 export function TeamOsApp({ user }: { user: { name: string; email: string } }) {
   const [section, setSection] = useState<Section>("overview");
   const [workspace, setWorkspace] = useState<WorkspacePayload>(emptyWorkspace);
@@ -34,9 +40,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string } }) {
 
   const loadWorkspace = useCallback(async () => {
     try {
-      const response = await fetch("/api/workspace", { cache: "no-store" });
-      if (!response.ok) throw new Error("workspace unavailable");
-      setWorkspace((await response.json()) as WorkspacePayload);
+      setWorkspace(await fetchWorkspace());
     } catch {
       setNotice("Өгөгдлийн холболтыг шалгаж байна. Түр хугацаанд унших горим ажиллаж байна.");
     } finally {
@@ -45,8 +49,23 @@ export function TeamOsApp({ user }: { user: { name: string; email: string } }) {
   }, []);
 
   useEffect(() => {
-    void loadWorkspace();
-  }, [loadWorkspace]);
+    let active = true;
+
+    fetchWorkspace()
+      .then((nextWorkspace) => {
+        if (active) setWorkspace(nextWorkspace);
+      })
+      .catch(() => {
+        if (active) setNotice("Өгөгдлийн холболтыг шалгаж байна. Түр хугацаанд унших горим ажиллаж байна.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function runAction(payload: Record<string, unknown>, successMessage: string) {
     setSaving(true);
