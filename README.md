@@ -11,9 +11,11 @@
 - **Database:** Supabase Postgres
 - **Authentication:** Supabase Auth SSR cookie
 - **Authorization:** Postgres Row Level Security (RLS)
-- **CI/CD:** GitHub Actions → Vercel
+- **CI/CD:** GitHub Actions verification + Vercel Git deployment
 
 Cloudflare Worker, Vinext болон D1 runtime ашиглахгүй.
+
+Production: <https://incruises-team-os.vercel.app>
 
 ## Үндсэн боломжууд
 
@@ -65,10 +67,10 @@ Supabase Auth → URL Configuration хэсэгт дараах redirect URL-уу�
 
 ```text
 http://localhost:3000/auth/confirm
-https://YOUR_VERCEL_DOMAIN/auth/confirm
+https://incruises-team-os.vercel.app/auth/confirm
 ```
 
-Confirm signup email template-ийн холбоосыг дараах хэлбэрээр тохируулна:
+Production дээр email confirmation идэвхтэй. Supabase-ийн built-in email service нь default confirmation template ашиглана. Custom SMTP холбосны дараа SSR confirmation route ашиглах бол template холбоосыг дараах хэлбэрээр тохируулна:
 
 ```text
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
@@ -86,9 +88,9 @@ Pull request болон `main` push бүр дээр GitHub Actions dependency in
 
 ## Vercel deployment
 
-Vercel project-д GitHub repository-г холбоод Supabase-ийн хоёр public environment variable-ийг Preview болон Production орчинд нэмнэ.
+`tumeejav-8697s-projects/incruises-team-os` Vercel project нь GitHub repository-тэй холбоотой. Supabase-ийн хоёр public environment variable нь Development, Preview, Production орчинд тохирсон. `main` branch-ийн шинэ commit-уудыг Vercel Git integration автоматаар deploy хийнэ.
 
-GitHub Actions-оос production deploy хийх бол repository secrets-д:
+Нэмэлт GitHub Actions production deploy-ийг идэвхжүүлэх бол repository secrets-д:
 
 - `VERCEL_TOKEN`
 - `VERCEL_ORG_ID`

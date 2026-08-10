@@ -43,3 +43,13 @@ test("ships Supabase RLS persistence, SSR session refresh and PWA wiring", async
   assert.match(api, /member_tasks/);
   assert.doesNotMatch(api, /drizzle|cloudflare:workers/);
 });
+
+test("keeps production Supabase auth safeguards in version control", async () => {
+  const config = await readFile(new URL("../supabase/config.toml", import.meta.url), "utf8");
+
+  assert.match(config, /site_url = "https:\/\/incruises-team-os\.vercel\.app"/);
+  assert.match(config, /enable_confirmations = true/);
+  assert.match(config, /otp_length = 8/);
+  assert.match(config, /enroll_enabled = true/);
+  assert.match(config, /verify_enabled = true/);
+});
