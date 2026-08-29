@@ -6,3 +6,4 @@ export function createClient() {
   if (!config) throw new Error("Supabase environment is not configured");
   return createBrowserClient(config.url, config.publishableKey);
 }
+

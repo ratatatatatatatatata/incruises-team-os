@@ -23,22 +23,3 @@ export async function login(formData: FormData) {
   revalidatePath("/", "layout");
   redirect("/");
 }
-
-export async function signup(formData: FormData) {
-  if (!isSupabaseConfigured()) loginRedirect("error", "Supabase project тохируулаагүй байна.");
-
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-  const fullName = String(formData.get("fullName") ?? "").trim().slice(0, 120);
-  if (!email || password.length < 8) loginRedirect("error", "Имэйл болон 8-аас дээш тэмдэгттэй нууц үг оруулна уу.");
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { full_name: fullName || email } },
-  });
-  if (error) loginRedirect("error", "Бүртгэл үүсгэж чадсангүй. Имэйл болон тохиргоогоо шалгана уу.");
-
-  loginRedirect("message", "Баталгаажуулах холбоосыг имэйлээр илгээлээ.");
-}

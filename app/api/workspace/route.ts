@@ -1,25 +1,32 @@
-import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { officialSources } from "../../team-os-data";
+import { createClient } from "@/lib/supabase/server";
+import { learningLevels, officialSources } from "../../team-os-data";
 
 const allowedSourceIds = new Set<string>(officialSources.map((source) => source.id));
+const allowedLessonIds = new Set<string>(learningLevels.flatMap((level) => level.lessons.map((lesson) => lesson.id)));
 const allowedChannels = new Set(["Facebook", "Instagram", "Short video", "FAQ", "Message"]);
-const allowedStatuses = new Set(["draft", "review", "approved", "archived"]);
+
+type TeamRole = "builder" | "coach" | "director" | "admin";
 
 type AuthContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;
+  role: TeamRole;
 };
 
 type LessonRow = { lesson_id: string; status: string; score: number | null };
 type DraftRow = {
   id: number;
+  owner_id: string;
   title: string;
   channel: string;
   source_id: string;
   status: string;
   excerpt: string;
   created_at: string;
+  review_note: string | null;
+  corporate_approval_ref: string | null;
+  corporate_approved_at: string | null;
 };
 type TaskRow = {
   id: number;
@@ -31,51 +38,61 @@ type TaskRow = {
   status: string;
 };
 
-async function authorizedContext(): Promise<AuthContext | null> {
-  if (!isSupabaseConfigured()) throw new Error("SUPABASE_NOT_CONFIGURED");
+class WorkspaceError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function authorizedContext(): Promise<AuthContext> {
+  if (!isSupabaseConfigured()) throw new WorkspaceError(503, "Supabase project is not configured");
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims as Record<string, unknown> | undefined;
   const userId = typeof claims?.sub === "string" ? claims.sub : null;
-  const email = typeof claims?.email === "string" ? claims.email : null;
-  if (error || !userId || !email) return null;
+  if (error || !userId) throw new WorkspaceError(401, "Sign in required");
 
-  const metadata = claims?.user_metadata as Record<string, unknown> | undefined;
-  const displayName = typeof metadata?.full_name === "string" ? metadata.full_name : email;
-  const { error: profileError } = await supabase.from("user_profiles").upsert(
-    {
-      id: userId,
-      email,
-      display_name: displayName,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
-  if (profileError) throw profileError;
+  const { data: membership, error: membershipError } = await supabase
+    .from("team_members")
+    .select("role,status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (membershipError) throw membershipError;
 
-  return { supabase, userId };
+  const member = membership as { role: TeamRole; status: "active" | "disabled" } | null;
+  if (!member || member.status !== "active") throw new WorkspaceError(403, "Team access is not active");
+
+  return { supabase, userId, role: member.role };
+}
+
+function transitionFailure(error: { code?: string; message?: string }): never {
+  if (error.code === "42501") throw new WorkspaceError(403, "Энэ үйлдэлд шаардлагатай эрх эсвэл тусдаа хянагч алга.");
+  if (error.code === "P0002") throw new WorkspaceError(404, "Ноорог олдсонгүй.");
+  if (error.code === "22023") throw new WorkspaceError(409, "Контентын төлөв эсвэл эх сурвалж энэ шилжилтийг зөвшөөрөхгүй байна.");
+  throw error;
 }
 
 function serverError(error: unknown) {
-  const notConfigured = error instanceof Error && error.message === "SUPABASE_NOT_CONFIGURED";
-  return Response.json(
-    { error: notConfigured ? "Supabase project is not configured" : "Workspace service unavailable" },
-    { status: notConfigured ? 503 : 500 },
-  );
+  if (error instanceof WorkspaceError) {
+    return Response.json({ error: error.message }, { status: error.status });
+  }
+
+  console.error("Workspace request failed", error);
+  return Response.json({ error: "Workspace service unavailable" }, { status: 500 });
 }
 
 export async function GET() {
   try {
-    const context = await authorizedContext();
-    if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
-
-    const { supabase } = context;
+    const { supabase, userId, role } = await authorizedContext();
     const [progressResult, draftsResult, tasksResult] = await Promise.all([
       supabase.from("lesson_progress").select("lesson_id,status,score").order("completed_at", { ascending: false }),
       supabase
         .from("content_drafts")
-        .select("id,title,channel,source_id,status,excerpt,created_at")
+        .select("id,owner_id,title,channel,source_id,status,excerpt,created_at,review_note,corporate_approval_ref,corporate_approved_at")
         .order("updated_at", { ascending: false })
         .limit(30),
       supabase
@@ -101,6 +118,10 @@ export async function GET() {
       status: row.status,
       excerpt: row.excerpt,
       createdAt: row.created_at,
+      isOwner: row.owner_id === userId,
+      reviewNote: row.review_note,
+      corporateApprovalRef: row.corporate_approval_ref,
+      corporateApprovedAt: row.corporate_approved_at,
     }));
     const memberTasks = ((tasksResult.data ?? []) as TaskRow[]).map((row) => ({
       id: row.id,
@@ -112,7 +133,16 @@ export async function GET() {
       status: row.status,
     }));
 
-    return Response.json({ progress, drafts, memberTasks });
+    return Response.json({
+      viewer: {
+        role,
+        canReview: ["coach", "director", "admin"].includes(role),
+        canRecordCorporateApproval: role === "admin",
+      },
+      progress,
+      drafts,
+      memberTasks,
+    });
   } catch (error) {
     return serverError(error);
   }
@@ -120,27 +150,32 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const context = await authorizedContext();
-    if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
-
+    const { supabase, userId, role } = await authorizedContext();
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
-    const { supabase, userId } = context;
 
     if (action === "toggle_lesson") {
-      const lessonId = String(body.lessonId ?? "").slice(0, 80);
-      if (!lessonId) return Response.json({ error: "lessonId required" }, { status: 400 });
+      const lessonId = String(body.lessonId ?? "");
+      if (!allowedLessonIds.has(lessonId)) return Response.json({ error: "Unknown lesson" }, { status: 400 });
 
       const { data: existing, error: selectError } = await supabase
         .from("lesson_progress")
         .select("lesson_id")
+        .eq("user_id", userId)
         .eq("lesson_id", lessonId)
         .maybeSingle();
       if (selectError) throw selectError;
 
       if (existing) {
-        const { error } = await supabase.from("lesson_progress").delete().eq("lesson_id", lessonId);
+        const { data: deleted, error } = await supabase
+          .from("lesson_progress")
+          .delete()
+          .eq("user_id", userId)
+          .eq("lesson_id", lessonId)
+          .select("lesson_id")
+          .maybeSingle();
         if (error) throw error;
+        if (!deleted) throw new WorkspaceError(404, "Lesson progress not found");
         return Response.json({ completed: false });
       }
 
@@ -158,11 +193,11 @@ export async function POST(request: Request) {
       const channel = String(body.channel ?? "");
       const sourceId = String(body.sourceId ?? "");
       if (!title || !allowedChannels.has(channel) || !allowedSourceIds.has(sourceId)) {
-        return Response.json({ error: "Valid title, channel and approved source are required" }, { status: 400 });
+        return Response.json({ error: "Valid title, channel and official source are required" }, { status: 400 });
       }
 
       const source = officialSources.find((item) => item.id === sourceId)!;
-      const excerpt = `${title}. Энэ ноорог нь “${source.title}” эх сурвалжид тулгуурласан. Нийтлэхийн өмнө үнэ, боломж, үр дүнгийн claim бүрийг хянагч батална.`;
+      const excerpt = `${title}. Энэ ноорог нь “${source.title}” эх сурвалжид тулгуурласан. Нийтлэхийн өмнө claim бүрийг тусдаа хянагч шалгаж, компанийн approval reference-ийг админ бүртгэнэ.`;
       const { data: draft, error } = await supabase
         .from("content_drafts")
         .insert({ owner_id: userId, title, channel, source_id: sourceId, excerpt })
@@ -172,17 +207,51 @@ export async function POST(request: Request) {
       return Response.json({ draft }, { status: 201 });
     }
 
-    if (action === "set_draft_status") {
+    if (action === "submit_draft") {
       const id = Number(body.id);
-      const status = String(body.status ?? "");
-      if (!Number.isInteger(id) || !allowedStatuses.has(status)) {
-        return Response.json({ error: "Valid draft and status required" }, { status: 400 });
+      if (!Number.isInteger(id)) return Response.json({ error: "Valid draft required" }, { status: 400 });
+      const { error } = await supabase.rpc("submit_content_draft", { p_id: id });
+      if (error) transitionFailure(error);
+      return Response.json({ ok: true });
+    }
+
+    if (action === "review_draft") {
+      if (!["coach", "director", "admin"].includes(role)) throw new WorkspaceError(403, "Reviewer role required");
+      const id = Number(body.id);
+      const decision = String(body.decision ?? "");
+      const note = String(body.note ?? "").trim().slice(0, 500);
+      if (!Number.isInteger(id) || !["internal_approved", "return_to_draft"].includes(decision)) {
+        return Response.json({ error: "Valid review decision required" }, { status: 400 });
       }
-      const { error } = await supabase
-        .from("content_drafts")
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
+      const { error } = await supabase.rpc("review_content_draft", {
+        p_id: id,
+        p_decision: decision,
+        p_note: note || null,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ ok: true });
+    }
+
+    if (action === "record_corporate_approval") {
+      if (role !== "admin") throw new WorkspaceError(403, "Admin role required");
+      const id = Number(body.id);
+      const evidenceRef = String(body.evidenceRef ?? "").trim().slice(0, 240);
+      if (!Number.isInteger(id) || evidenceRef.length < 3) {
+        return Response.json({ error: "Approval reference required" }, { status: 400 });
+      }
+      const { error } = await supabase.rpc("record_corporate_approval_reference", {
+        p_id: id,
+        p_evidence_ref: evidenceRef,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ ok: true });
+    }
+
+    if (action === "archive_draft") {
+      const id = Number(body.id);
+      if (!Number.isInteger(id)) return Response.json({ error: "Valid draft required" }, { status: 400 });
+      const { error } = await supabase.rpc("archive_content_draft", { p_id: id });
+      if (error) transitionFailure(error);
       return Response.json({ ok: true });
     }
 
@@ -207,11 +276,15 @@ export async function POST(request: Request) {
     if (action === "complete_member_task") {
       const id = Number(body.id);
       if (!Number.isInteger(id)) return Response.json({ error: "Valid task required" }, { status: 400 });
-      const { error } = await supabase
+      const { data: task, error } = await supabase
         .from("member_tasks")
         .update({ status: "complete", updated_at: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("owner_id", userId)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!task) throw new WorkspaceError(404, "Task not found");
       return Response.json({ ok: true });
     }
 

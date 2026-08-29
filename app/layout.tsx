@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "./brand";
 import { PwaRegister } from "./pwa-register";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -8,26 +9,30 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const base = new URL(`${protocol}://${host}`);
-  const title = "inCruises Team OS";
-  const description = "Багийн сургалт, контентын хяналт, гишүүний амжилтын private operating system.";
+  const title = PRODUCT_NAME;
+  const description = PRODUCT_DESCRIPTION;
 
   return {
     metadataBase: base,
     title: { default: title, template: `%s · ${title}` },
     description,
     applicationName: title,
+    robots: {
+      index: false,
+      follow: false,
+      nocache: true,
+      googleBot: { index: false, follow: false, noimageindex: true },
+    },
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
     openGraph: {
       type: "website",
       title,
       description,
-      images: [{ url: new URL("/og.png", base).toString(), width: 1536, height: 1024, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [new URL("/og.png", base).toString()],
     },
   };
 }

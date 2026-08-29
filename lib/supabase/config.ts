@@ -13,3 +13,4 @@ export function getSupabaseConfig(): SupabasePublicConfig | null {
 export function isSupabaseConfigured(): boolean {
   return getSupabaseConfig() !== null;
 }
+

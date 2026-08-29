@@ -6,13 +6,14 @@ import { TeamOsApp } from "./team-os-app";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Team OS",
+  title: "Хяналтын төв",
 };
 
 export default async function Home() {
   const user = await getCurrentTeamOsUser();
 
   if (!user) redirect("/login");
+  if (user.access !== "active" || !user.role) redirect("/access-pending");
 
-  return <TeamOsApp user={{ name: user.displayName, email: user.email }} />;
+  return <TeamOsApp user={{ name: user.displayName, email: user.email, role: user.role }} />;
 }
