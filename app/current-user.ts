@@ -5,7 +5,11 @@ export type TeamOsUser = {
   userId: string;
   displayName: string;
   email: string;
+  role: TeamRole | null;
+  access: "active" | "disabled" | "pending";
 };
+
+export type TeamRole = "builder" | "coach" | "director" | "admin";
 
 export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
   if (!isSupabaseConfigured()) return null;
@@ -23,9 +27,32 @@ export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
       ? metadata.full_name
       : null;
 
+  const { data: membership, error: membershipError } = await supabase
+    .from("team_members")
+    .select("role,status")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (membershipError) throw membershipError;
+
+  const activeMembership = membership as { role: TeamRole; status: "active" | "disabled" } | null;
+  const access = activeMembership?.status ?? "pending";
+  let displayName = fullName ?? email;
+
+  if (access === "active") {
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("display_name")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profile?.display_name) displayName = String(profile.display_name);
+  }
+
   return {
     userId,
     email,
-    displayName: fullName ?? email,
+    displayName,
+    role: activeMembership?.role ?? null,
+    access,
   };
 }

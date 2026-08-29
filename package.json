@@ -1,5 +1,5 @@
 {
-  "name": "incruises-team-os",
+  "name": "insuccess-team-os",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.16.0",
@@ -10,7 +10,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "pnpm run build && node --test tests/rendered-html.test.mjs",
+    "test": "pnpm run build && node --test tests/*.test.mjs",
+    "test:source": "node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern dist --ignore-pattern .vercel",
     "typecheck": "tsc --noEmit"
   },

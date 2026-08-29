@@ -1,6 +1,6 @@
-# inCruises Team OS
+# inSuccess Team OS
 
-Монгол хэл дээрх багийн сургалт, контентын хяналт, гишүүний дараагийн алхам болон албан эх сурвалжийг нэгтгэсэн private web platform.
+Монгол хэл дээрх багийн сургалт, контентын хяналт, гишүүний дараагийн алхам болон албан эх сурвалжийг нэгтгэсэн private web platform. Системийн брэнд нэр нь **inSuccess**.
 
 > Энэ нь багийн дотоод сургалтын хэрэгсэл бөгөөд inCruises-ийн албан ёсны бүтээгдэхүүн биш. Үнэ, урамшуулал, аялал болон бодлогын мэдээллийг нийтлэхийн өмнө албан эх сурвалжаар баталгаажуулна.
 
@@ -20,12 +20,12 @@ Production: <https://incruises-team-os.vercel.app>
 ## Үндсэн боломжууд
 
 - Удирдлагын хяналтын төв
-- L0–L6 шаталсан Academy ба хичээлийн явц
-- Content Studio: draft → review → approved workflow
+- Academy completion tracker (quiz, rubric, certification gate дараагийн release)
+- Content Studio: draft → тусдаа reviewer → internal review → company approval reference workflow
 - Member Success даалгаврын самбар
 - Албан эх сурвалжийн Source Vault
-- Supabase email/password authentication
-- Хэрэглэгч бүрийн өгөгдлийг тусгаарласан RLS policies
+- Invite-only Supabase email/password authentication
+- Active team membership, role separation, least-privilege RLS policies
 - Mobile-friendly PWA
 
 ## Локал ажиллуулах
@@ -49,10 +49,13 @@ Publishable key нь frontend-д ашиглагдах зориулалттай �
 
 ## Supabase database
 
-Schema ба RLS policy:
+Schema, membership, RLS болон content review workflow:
 
 ```text
 supabase/migrations/20260810000000_team_os.sql
+supabase/migrations/20260829062550_harden_membership_access.sql
+supabase/migrations/20260829062600_enforce_content_review_workflow.sql
+supabase/migrations/20260829063013_finalize_content_write_lockdown.sql
 ```
 
 Supabase CLI-гаар project холбоод migration ажиллуулна:
@@ -76,6 +79,16 @@ Production дээр email confirmation идэвхтэй. Supabase-ийн built-i
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
 ```
 
+Invite template-ийн холбоос:
+
+```text
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password
+```
+
+Hosted Supabase Auth дээр public email sign-up болон ашигладаггүй provider-уудыг OFF, leaked-password protection-ийг ON болгоно. Repository дахь `enable_signup = false` нь local parity; hosted setting-ийг Dashboard/Management API дээр тусад нь баталгаажуулна.
+
+Шинэ auth user Team OS-ийн өгөгдөлд автоматаар эрх авахгүй. `public.team_members` дахь membership-ийг админ тусад нь active болгоно. Role-г `user_metadata` эсвэл `user_profiles.role`-оос authorization-д ашиглахгүй.
+
 ## Шалгалт
 
 ```bash
@@ -88,7 +101,7 @@ Pull request болон `main` push бүр дээр GitHub Actions dependency in
 
 ## Vercel deployment
 
-`tumeejav-8697s-projects/incruises-team-os` Vercel project нь GitHub repository-тэй холбоотой. Supabase-ийн хоёр public environment variable нь Development, Preview, Production орчинд тохирсон. `main` branch-ийн шинэ commit-уудыг Vercel Git integration автоматаар deploy хийнэ.
+Vercel project нь GitHub repository-тэй холбоотой. Supabase-ийн хоёр public environment variable нь Development, Preview, Production орчинд тохирсон байна. Production promotion хийхийн өмнө preview дээр login, auth redirect, security headers болон API 401/403 урсгалыг шалгана.
 
 Нэмэлт GitHub Actions production deploy-ийг идэвхжүүлэх бол repository secrets-д:
 
@@ -108,4 +121,5 @@ Pull request болон `main` push бүр дээр GitHub Actions dependency in
 - Нууц үгийг Supabase Auth удирдана.
 - Хэрэглэгчийн session-г SSR cookie болон `getClaims()`-ээр баталгаажуулна.
 - Public schema дахь бүх application table RLS идэвхтэй.
-- Generative AI credential одоогоор холбогдоогүй; Content Studio нь батлагдсан template engine ашигладаг.
+- Generative AI credential болон automatic claim scanner одоогоор холбогдоогүй.
+- `corporate_approved` нь компанийн approval reference бүртгэгдсэнийг л илэрхийлнэ; app уг external баримтыг өөрөө баталгаажуулахгүй.

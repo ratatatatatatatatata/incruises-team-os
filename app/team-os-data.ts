@@ -118,6 +118,11 @@ export const officialSources = [
 ] as const;
 
 export type WorkspacePayload = {
+  viewer: {
+    role: "builder" | "coach" | "director" | "admin";
+    canReview: boolean;
+    canRecordCorporateApproval: boolean;
+  };
   progress: Array<{ lessonId: string; status: string; score: number | null }>;
   drafts: Array<{
     id: number;
@@ -127,6 +132,10 @@ export type WorkspacePayload = {
     status: string;
     excerpt: string;
     createdAt: string;
+    isOwner: boolean;
+    reviewNote: string | null;
+    corporateApprovalRef: string | null;
+    corporateApprovedAt: string | null;
   }>;
   memberTasks: Array<{
     id: number;
