@@ -79,3 +79,4 @@ grant select, insert, update, delete on public.user_profiles, public.lesson_prog
 grant usage, select on sequence public.content_drafts_id_seq, public.member_tasks_id_seq to authenticated;
 
 commit;
+
