@@ -132,6 +132,19 @@ select is(
   'Submitting a draft writes an audit event'
 );
 
+reset role;
+update public.team_members
+set role = 'coach',
+    updated_at = now()
+where user_id = '20000000-0000-4000-8000-000000000001';
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-4000-8000-000000000001","role":"authenticated"}',
+  true
+);
+
 select throws_ok(
   $$select public.review_content_draft((select id from public.content_drafts where title = 'Workflow primary draft'), 'internal_approved', 'self review')$$,
   '42501',
