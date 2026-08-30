@@ -23,7 +23,7 @@ export default async function SetPasswordPage({
         <p className="eyebrow">INVITE SETUP</p>
         <h1>{BRAND_NAME}<br />{PRODUCT_DESCRIPTOR}</h1>
         <p className="signin-copy">Урилгын session баталгаажлаа. Team OS-д дараагийн удаа нэвтрэх хүчтэй нууц үгээ тохируулна уу.</p>
-        {params.error && <p className="auth-message error">{params.error}</p>}
+        {params.error && <p className="auth-message error" role="alert">{params.error}</p>}
         <form className="signin-form">
           <label>Шинэ нууц үг<input name="password" type="password" autoComplete="new-password" required minLength={12} /></label>
           <label>Нууц үг давтах<input name="confirmation" type="password" autoComplete="new-password" required minLength={12} /></label>
