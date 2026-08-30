@@ -21,8 +21,8 @@ export default async function LoginPage({
         <h1>{BRAND_NAME}<br />{PRODUCT_DESCRIPTOR}</h1>
         <p className="signin-copy">Зөвхөн урилгаар нэвтэрдэг багийн орчин. Сургалт, контентын хяналт, гишүүний дараагийн алхмыг нэг дор удирдана.</p>
 
-        {!configured && <p className="auth-message error">Supabase environment variable тохируулаагүй байна.</p>}
-        {params.error && <p className="auth-message error">{params.error}</p>}
+        {!configured && <p className="auth-message error" role="alert">Supabase environment variable тохируулаагүй байна.</p>}
+        {params.error && <p className="auth-message error" role="alert">{params.error}</p>}
         {params.message && <p className="auth-message success">{params.message}</p>}
 
         <form className="signin-form">

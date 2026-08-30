@@ -72,3 +72,62 @@ test("private-app response controls are configured", async () => {
   assert.match(serviceWorker, /STATIC_ASSETS\.includes\(url\.pathname\)/);
   assert.doesNotMatch(serviceWorker, /cache\.put/);
 });
+
+test("workspace data uses canonical lesson IDs and verified database sources", async () => {
+  const [api, data, sourceMigration] = await Promise.all([
+    readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/team-os-data.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260830033919_reconcile_learning_and_sources.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(api, /function canonicalLessonId/);
+  assert.match(api, /\.from\("official_sources"\)/);
+  assert.match(api, /allowed_for_review,verified_at/);
+  assert.match(api, /function sourceUsableForReview/);
+  assert.match(api, /source\.review_due_at >= today/);
+  assert.match(data, /officialSources: OfficialSource\[\]/);
+  assert.match(sourceMigration, /create trigger content_drafts_verified_source_gate/);
+  assert.match(sourceMigration, /create or replace function private\.enforce_verified_content_source/);
+  assert.match(sourceMigration, /A verified and review-allowed official source is required/);
+  assert.match(sourceMigration, /Official source review is overdue/);
+  assert.match(sourceMigration, /Official source verification date cannot be in the future/);
+});
+
+test("admin access is server-only, fail-closed, and audited", async () => {
+  const [adminServer, adminRoute, adminClient, adminMigration] = await Promise.all([
+    readFile(new URL("../lib/supabase/admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/members/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/admin/admin-console.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260830033918_admin_membership_operations.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(adminServer, /^import "server-only";/);
+  assert.match(adminServer, /process\.env\.SUPABASE_SECRET_KEY/);
+  assert.doesNotMatch(adminServer + adminRoute + adminClient, /NEXT_PUBLIC_SUPABASE_SECRET_KEY/);
+  assert.match(adminServer, /requireActiveAdmin/);
+  assert.match(adminRoute, /inviteUserByEmail/);
+  assert.match(adminRoute, /admin_register_invited_member/);
+  assert.match(adminRoute, /admin_update_team_member/);
+  assert.match(adminMigration, /values \(p_user_id, 'builder', 'disabled'\)/);
+  assert.match(adminMigration, /team_membership_audit_events/);
+  assert.match(adminMigration, /An admin cannot demote or disable their own membership/);
+  assert.match(adminMigration, /create or replace function public\.admin_update_team_member[\s\S]*security invoker/);
+  assert.doesNotMatch(adminMigration, /create or replace function public\.admin_update_team_member[\s\S]{0,180}security definer/);
+});
+
+test("CI runs isolated database policy tests before the application build", async () => {
+  const [workflow, membershipTest, contentTest, adminTest] = await Promise.all([
+    readFile(new URL("../.github/workflows/verify.yml", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/tests/001_membership_rls.test.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/tests/002_content_workflow.test.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/tests/003_admin_membership.test.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(workflow, /supabase\/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520/);
+  assert.match(workflow, /version: 2\.116\.0/);
+  assert.match(workflow, /supabase db start/);
+  assert.match(workflow, /supabase test db supabase\/tests/);
+  assert.match(membershipTest, /select plan\(/);
+  assert.match(contentTest, /select plan\(/);
+  assert.match(adminTest, /select plan\(/);
+});

@@ -1,0 +1,526 @@
+.adminShell,
+.stateShell {
+  min-height: 100vh;
+  color: #162236;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(61, 141, 255, 0.14), transparent 32%),
+    #f3f6fa;
+}
+
+.adminShell {
+  padding: 36px clamp(18px, 5vw, 72px) 64px;
+}
+
+.header {
+  width: min(1240px, 100%);
+  margin: 0 auto 26px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.header h1,
+.invitePanel h2,
+.sectionHeading h2,
+.statePanel h1 {
+  margin: 6px 0 0;
+  letter-spacing: -0.035em;
+}
+
+.header h1 {
+  font-size: clamp(30px, 4vw, 48px);
+}
+
+.header > div:first-child > p:last-child,
+.invitePanel > div > p:last-child {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #667389;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #667389;
+  font-size: 12px;
+}
+
+.console {
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #176fc1;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+}
+
+.invitePanel,
+.membersSection,
+.statePanel {
+  border: 1px solid #dce3ed;
+  background: #fff;
+  box-shadow: 0 18px 55px rgba(28, 49, 78, 0.07);
+}
+
+.invitePanel {
+  padding: 26px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(360px, 1.2fr);
+  align-items: end;
+  gap: 30px;
+}
+
+.inviteForm {
+  display: grid;
+  gap: 7px;
+}
+
+.inviteForm label,
+.memberControls label {
+  color: #4d5a6e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.inviteForm > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+}
+
+.inviteForm input,
+.memberControls select {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid #cdd7e4;
+  border-radius: 8px;
+  background: #fbfcfe;
+  color: #162236;
+  padding: 9px 11px;
+  outline: none;
+}
+
+.inviteForm input:focus,
+.memberControls select:focus {
+  border-color: #3186e0;
+  box-shadow: 0 0 0 3px rgba(49, 134, 224, 0.12);
+}
+
+.primaryButton,
+.secondaryLink,
+.listActions button,
+.pagination button {
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 0;
+  background: #126bbd;
+  color: #fff;
+  padding: 10px 16px;
+}
+
+.primaryButton:disabled,
+.listActions button:disabled,
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.secondaryLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd6e3;
+  color: #176fc1;
+  background: #fff;
+  padding: 9px 14px;
+  text-decoration: none;
+}
+
+.guardrails {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid #16395e;
+  background: #09213a;
+  color: #bcd2e6;
+}
+
+.guardrails span {
+  padding: 13px 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.guardrails span:last-child {
+  border-right: 0;
+}
+
+.notice,
+.error,
+.inlineError {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.notice {
+  border-color: #17936c;
+  background: #e9f8f2;
+  color: #126a50;
+}
+
+.error,
+.inlineError {
+  border-color: #d44747;
+  background: #fff0f0;
+  color: #9c2f2f;
+}
+
+.membersSection {
+  padding: 26px;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e4e9f0;
+}
+
+.sectionHeading h2 {
+  font-size: 28px;
+}
+
+.listActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #667389;
+  font-size: 11px;
+}
+
+.listActions button,
+.pagination button {
+  min-height: 44px;
+  border: 1px solid #cdd7e4;
+  background: #fff;
+  color: #176fc1;
+  padding: 7px 11px;
+}
+
+.memberList {
+  display: grid;
+}
+
+.memberCard {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.15fr) minmax(210px, 0.65fr) minmax(330px, 1fr);
+  align-items: center;
+  gap: 22px;
+  padding: 19px 0;
+  border-bottom: 1px solid #e7ebf1;
+}
+
+.memberCard:last-child {
+  border-bottom: 0;
+}
+
+.memberIdentity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eaf4ff;
+  color: #176fc1;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.memberIdentity h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.memberIdentity > div > p {
+  max-width: 330px;
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: #8793a5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.authMeta {
+  margin-top: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.confirmed,
+.pending,
+.selfBadge {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 8px;
+  font-weight: 850;
+}
+
+.confirmed {
+  background: #e6f7f0;
+  color: #087755;
+}
+
+.pending {
+  background: #fff3df;
+  color: #98610d;
+}
+
+.selfBadge {
+  background: #eaf4ff;
+  color: #176fc1;
+}
+
+.dateList {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.dateList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dateList dt,
+.dateList dd {
+  font-size: 9px;
+}
+
+.dateList dt {
+  color: #8793a5;
+}
+
+.dateList dd {
+  margin: 0;
+  color: #4d5a6e;
+  text-align: right;
+}
+
+.memberControls {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.65fr) minmax(105px, 0.8fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.memberControls label {
+  display: grid;
+  gap: 5px;
+}
+
+.memberControls select {
+  min-height: 44px;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+.memberControls .primaryButton {
+  min-height: 44px;
+}
+
+.controlHint,
+.noMembership {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #8793a5;
+  font-size: 9px;
+}
+
+.noMembership {
+  align-self: center;
+}
+
+.inlineError {
+  grid-column: 1 / -1;
+}
+
+.loading {
+  margin: 0;
+  padding: 40px 0;
+  color: #667389;
+  text-align: center;
+  font-size: 12px;
+}
+
+.pagination {
+  padding-top: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #e7ebf1;
+  color: #667389;
+  font-size: 10px;
+}
+
+.stateShell {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.statePanel {
+  width: min(620px, 100%);
+  padding: clamp(30px, 6vw, 58px);
+}
+
+.statePanel h1 {
+  font-size: clamp(36px, 7vw, 58px);
+}
+
+.stateCopy,
+.safetyNote {
+  color: #627086;
+  line-height: 1.7;
+}
+
+.stateCopy code,
+.safetyNote code {
+  border-radius: 4px;
+  background: #edf3f9;
+  color: #114e86;
+  padding: 2px 5px;
+}
+
+.safetyNote {
+  padding: 12px 14px;
+  border-left: 3px solid #e1a337;
+  background: #fff7e8;
+  font-size: 11px;
+}
+
+.identity {
+  color: #176fc1;
+  font-weight: 800;
+}
+
+.statePanel .secondaryLink {
+  margin-top: 16px;
+}
+
+@media (max-width: 1000px) {
+  .memberCard {
+    grid-template-columns: minmax(260px, 1fr) minmax(320px, 1fr);
+  }
+
+  .dateList {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .adminShell {
+    padding: 24px 14px 48px;
+  }
+
+  .header,
+  .sectionHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .headerActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .invitePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .guardrails {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .guardrails span:nth-child(2) {
+    border-right: 0;
+  }
+
+  .memberCard {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .memberControls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .memberControls .primaryButton {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .invitePanel,
+  .membersSection,
+  .statePanel {
+    padding: 20px;
+  }
+
+  .inviteForm > div,
+  .memberControls {
+    grid-template-columns: 1fr;
+  }
+
+  .memberControls .primaryButton,
+  .controlHint,
+  .noMembership {
+    grid-column: 1;
+  }
+
+  .guardrails {
+    grid-template-columns: 1fr;
+  }
+
+  .guardrails span {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}

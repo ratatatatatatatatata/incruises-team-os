@@ -18,11 +18,11 @@ create table if not exists public.official_sources (
 insert into public.official_sources (id, title, category, url, allowed_for_review, verified_at)
 values
   ('membership-agreement', 'Membership Agreement 3.2', 'Member', 'https://files.incruises.com/files/en/106EN_3.2_MEMBER_AGREEMENT.pdf', true, date '2026-04-02'),
-  ('membership-faq', 'Membership 3.X FAQ', 'Product', 'https://files.incruises.com/en/EN_Membership_3.X_FAQs.pdf', true, null),
-  ('partner-agreement', 'Independent Partner Agreement', 'Partner', 'https://files.incruises.com/files/en/104EN_3.2_INDEPENDENT_PARTNER_AGREEMENT.pdf', true, null),
-  ('policies', 'Policies & Procedures Manual', 'Compliance', 'https://files.incruises.com/files/en/203EN_POLICIES_AND_PROCEDURES_MANUAL.pdf', true, null),
-  ('brand-policy', 'Marketing Materials & Branding Policy', 'Content', 'https://files.incruises.com/files/en/207EN_MARKETING_MATERIALS_AND_BRANDING_POLICY.pdf', true, null),
-  ('income-guide', 'Income & Incentive Guide', 'Compensation', 'https://files.incruises.com/files/en/214EN_INCOME_AND_INCENTIVE_GUIDE.pdf', true, null),
+  ('membership-faq', 'Membership 3.X FAQ', 'Product', 'https://files.incruises.com/en/EN_Membership_3.X_FAQs.pdf', false, null),
+  ('partner-agreement', 'Independent Partner Agreement', 'Partner', 'https://files.incruises.com/files/en/104EN_3.2_INDEPENDENT_PARTNER_AGREEMENT.pdf', false, null),
+  ('policies', 'Policies & Procedures Manual', 'Compliance', 'https://files.incruises.com/files/en/203EN_POLICIES_AND_PROCEDURES_MANUAL.pdf', false, null),
+  ('brand-policy', 'Marketing Materials & Branding Policy', 'Content', 'https://files.incruises.com/files/en/207EN_MARKETING_MATERIALS_AND_BRANDING_POLICY.pdf', false, null),
+  ('income-guide', 'Income & Incentive Guide', 'Compensation', 'https://files.incruises.com/files/en/214EN_INCOME_AND_INCENTIVE_GUIDE.pdf', false, null),
   ('SRC-001', 'Legacy source SRC-001 — reconciliation required', 'Legacy', null, false, null),
   ('SRC-002', 'Legacy source SRC-002 — reconciliation required', 'Legacy', null, false, null),
   ('SRC-003', 'Legacy source SRC-003 — reconciliation required', 'Legacy', null, false, null),

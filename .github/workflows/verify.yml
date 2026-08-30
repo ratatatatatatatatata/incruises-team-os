@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Check out source
@@ -37,6 +37,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.116.0
+
+      - name: Start isolated Supabase database
+        run: supabase db start
+
+      - name: Test database policies and workflows
+        run: supabase test db supabase/tests
+
       - name: Lint
         run: pnpm run lint
 
@@ -54,4 +65,3 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 14
-
