@@ -5,7 +5,7 @@ import { getSupabaseConfig } from "./config";
 import { createClient as createSessionClient } from "./server";
 
 export type TeamRole = "builder" | "coach" | "director" | "admin";
-export type MembershipStatus = "active" | "disabled";
+export type MembershipStatus = "pending" | "active" | "disabled";
 
 export class AdminAccessError extends Error {
   constructor(

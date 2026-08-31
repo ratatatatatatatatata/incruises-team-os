@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const roles = new Set<TeamRole>(["builder", "coach", "director", "admin"]);
-const statuses = new Set<MembershipStatus>(["active", "disabled"]);
+const statuses = new Set<MembershipStatus>(["pending", "active", "disabled"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 class AdminRequestError extends Error {
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
       if (membershipError) {
         return json(
           {
-            error: "Урилга үүссэн байж болно, харин disabled membership бүртгэгдсэнгүй. Migration-ийг шалгаад жагсаалтыг дахин ачаална уу.",
+            error: "Урилга үүссэн байж болно, харин onboarding хүлээж буй membership бүртгэгдсэнгүй. Migration-ийг шалгаад жагсаалтыг дахин ачаална уу.",
             code: "membership_registration_failed",
             userId: data.user.id,
           },
@@ -204,7 +204,7 @@ export async function POST(request: Request) {
         {
           ok: true,
           user: { id: data.user.id, email: data.user.email ?? email },
-          membership: { role: "builder", status: "disabled" },
+          membership: { role: "builder", status: "pending" },
         },
         201,
       );
@@ -216,7 +216,7 @@ export async function POST(request: Request) {
         p_user_id: userId,
       });
       if (error) databaseFailure(error);
-      return json({ ok: true, membership: { role: "builder", status: "disabled" } }, 201);
+      return json({ ok: true, membership: { role: "builder", status: "pending" } }, 201);
     }
 
     if (action === "update_membership") {

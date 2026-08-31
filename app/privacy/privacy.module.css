@@ -1,0 +1,48 @@
+.shell { min-height: 100vh; padding: 0 clamp(16px,4vw,54px) 70px; background: radial-gradient(circle at 85% 0,rgba(61,141,255,.13),transparent 30rem),#f4f7fb; }
+.header { min-height: 76px; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; color: #657185; font-size: 12px; font-weight: 800; }
+.header a { min-height: 44px; display: inline-flex; align-items: center; color: #2277ee; }
+.hero { max-width: 1100px; margin: 25px auto 28px; }
+.hero p { margin: 0; color: #2277ee; font-size: 10px; font-weight: 900; letter-spacing: .16em; }
+.hero h1 { margin: 10px 0 0; font-size: clamp(43px,7vw,76px); letter-spacing: -.065em; line-height: .95; }
+.hero span { max-width: 760px; margin-top: 18px; display: block; color: #657185; font-size: 16px; line-height: 1.7; }
+.form, .state { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+.card, .consentCard, .state { padding: clamp(23px,4vw,38px); border: 1px solid #dfe6ef; border-radius: 18px; background: white; box-shadow: 0 15px 40px rgba(15,35,60,.05); }
+.cardHeading { display: grid; grid-template-columns: 48px minmax(0,1fr); gap: 16px; align-items: start; }
+.cardHeading > span { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: #eaf4ff; color: #2277ee; font-size: 11px; font-weight: 900; }
+.cardHeading h2 { margin: 0; font-size: 25px; letter-spacing: -.04em; }
+.cardHeading p { margin: 8px 0 0; color: #657185; font-size: 13px; line-height: 1.6; }
+.card fieldset { margin: 25px 0 0 64px; padding: 0; border: 0; display: grid; gap: 10px; }
+.card fieldset label { min-height: 76px; padding: 14px 16px; position: relative; display: grid; grid-template-columns: 24px minmax(0,1fr); align-items: center; gap: 13px; border: 2px solid #dfe6ef; border-radius: 12px; cursor: pointer; }
+.card fieldset input { width: 20px; height: 20px; accent-color: #2277ee; }
+.card fieldset label:has(input:checked) { border-color: #2277ee; background: #f2f8ff; }
+.card fieldset strong, .card fieldset small { display: block; }
+.card fieldset strong { font-size: 14px; }
+.card fieldset small { margin-top: 4px; color: #657185; font-size: 11px; line-height: 1.45; }
+.switchRow { margin: 25px 0 0 64px; min-height: 64px; display: flex; align-items: center; gap: 14px; cursor: pointer; }
+.switchRow input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.switchRow > span { width: 56px; height: 32px; padding: 4px; border-radius: 999px; background: #b7c4d2; transition: background .16s ease; }
+.switchRow > span::after { content: ""; width: 24px; height: 24px; display: block; border-radius: 50%; background: white; transition: transform .16s ease; }
+.switchRow input:checked + span { background: #168c68; }
+.switchRow input:checked + span::after { transform: translateX(24px); }
+.switchRow input:focus-visible + span { outline: 3px solid rgba(34,119,238,.3); outline-offset: 3px; }
+.consentCard { border-left: 4px solid #168c68; }
+.consentCard > div { display: flex; justify-content: space-between; gap: 20px; }
+.consentCard span { color: #087b56; font-size: 11px; font-weight: 900; }
+.consentCard p { margin: 9px 0 0; color: #657185; font-size: 12px; line-height: 1.6; }
+.withdraw, .restore { min-height: 46px; margin-top: 16px; padding: 0 16px; border-radius: 9px; font-size: 13px; font-weight: 850; cursor: pointer; }
+.withdraw { border: 1px solid #d59a9a; background: #fff7f7; color: #8f3131; }
+.restore { border: 0; background: #168c68; color: white; }
+.withdraw:disabled, .restore:disabled { opacity: .55; cursor: not-allowed; }
+.save { min-height: 54px; padding: 0 23px; justify-self: start; border: 0; border-radius: 10px; background: #2277ee; color: white; font-size: 14px; font-weight: 900; cursor: pointer; }
+.save:disabled { opacity: .45; cursor: not-allowed; }
+.success, .error { margin: 0; padding: 13px 15px; border-left: 4px solid; font-size: 13px; }
+.success { border-color: #168c68; background: #eef9f5; color: #116d51; }
+.error { border-color: #df5b5b; background: #fff0f0; color: #983b3b; }
+.state { min-height: 320px; place-items: center; align-content: center; text-align: center; }
+.state i { width: 38px; height: 38px; border: 4px solid #dce9f7; border-top-color: #2277ee; border-radius: 50%; animation: spin .8s linear infinite; }
+.state strong { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: #fff0f0; color: #df5b5b; font-size: 22px; }
+.state h2 { margin: 12px 0 0; }
+.state button { min-height: 46px; margin-top: 15px; padding: 0 17px; border: 0; border-radius: 9px; background: #2277ee; color: white; font-weight: 850; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media(max-width:650px){.card fieldset,.switchRow{margin-left:0}.cardHeading{grid-template-columns:40px 1fr}.cardHeading>span{width:40px;height:40px}.consentCard>div{flex-direction:column;gap:6px}.save{width:100%}}

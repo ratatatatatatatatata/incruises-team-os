@@ -218,6 +218,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
           </div>
           <div className="topbar-actions">
             <div className="sync-state" role="status" aria-live="polite"><span className={loading ? "pulse" : ""} />{workspaceStatus === "loading" ? "Холбож байна" : workspaceStatus === "ready" ? "Өгөгдөл шинэ" : "Унших горим"}</div>
+            <Link className="admin-link" href="/">Миний зам</Link>
             {user.role === "admin" && <Link className="admin-link" href="/admin">Admin</Link>}
             <div className="user-chip"><span>{user.name.charAt(0).toUpperCase()}</span><div><strong>{user.name}</strong><small>{user.role} · {user.email}</small></div></div>
           </div>

@@ -3,19 +3,21 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(11);
+select plan(13);
 
 insert into auth.users (id, email)
 values
   ('10000000-0000-4000-8000-000000000001', 'builder-one@example.test'),
   ('10000000-0000-4000-8000-000000000002', 'builder-two@example.test'),
-  ('10000000-0000-4000-8000-000000000003', 'disabled@example.test');
+  ('10000000-0000-4000-8000-000000000003', 'disabled@example.test'),
+  ('10000000-0000-4000-8000-000000000004', 'onboarding@example.test');
 
 insert into public.team_members (user_id, role, status)
 values
   ('10000000-0000-4000-8000-000000000001', 'builder', 'active'),
   ('10000000-0000-4000-8000-000000000002', 'builder', 'active'),
-  ('10000000-0000-4000-8000-000000000003', 'builder', 'disabled');
+  ('10000000-0000-4000-8000-000000000003', 'builder', 'disabled'),
+  ('10000000-0000-4000-8000-000000000004', 'builder', 'pending');
 
 insert into public.lesson_progress (user_id, lesson_id)
 values
@@ -106,6 +108,26 @@ select throws_ok(
   '42501',
   'new row violates row-level security policy for table "lesson_progress"',
   'A disabled member cannot create application progress'
+);
+
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"10000000-0000-4000-8000-000000000004","role":"authenticated"}',
+  true
+);
+
+select is_empty(
+  $$select lesson_id from public.lesson_progress$$,
+  'A pending onboarding member cannot read Team OS progress'
+);
+
+select throws_ok(
+  $$insert into public.lesson_progress (user_id, lesson_id) values ('10000000-0000-4000-8000-000000000004', 'l0-1')$$,
+  '42501',
+  'new row violates row-level security policy for table "lesson_progress"',
+  'A pending onboarding member cannot create Team OS progress'
 );
 
 select is(

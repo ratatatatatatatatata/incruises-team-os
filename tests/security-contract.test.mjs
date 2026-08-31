@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { safeNextPath } from "../app/auth/redirects.mjs";
+import { passwordRecoveryOrigin, passwordRecoveryRedirectUrl } from "../app/auth/recovery-url.mjs";
 
 test("auth redirect accepts only same-origin relative paths", () => {
   const origin = "https://team.example";
@@ -12,6 +13,46 @@ test("auth redirect accepts only same-origin relative paths", () => {
   assert.equal(safeNextPath("/%5cevil.example/path", origin), "/");
   assert.equal(safeNextPath("https://evil.example/path", origin), "/");
   assert.equal(safeNextPath(null, origin), "/");
+});
+
+test("password recovery uses only operator-controlled callback origins", () => {
+  assert.equal(
+    passwordRecoveryRedirectUrl({ PASSWORD_RESET_ORIGIN: "https://team.example", NODE_ENV: "production" }),
+    "https://team.example/auth/confirm?next=%2Fauth%2Fset-password%3Fflow%3Drecovery",
+  );
+  assert.equal(passwordRecoveryOrigin({ VERCEL_URL: "preview-team.vercel.app", NODE_ENV: "production" }), "https://preview-team.vercel.app");
+  assert.equal(passwordRecoveryOrigin({ PASSWORD_RESET_ORIGIN: "http://evil.example", NODE_ENV: "production" }), null);
+  assert.equal(passwordRecoveryOrigin({ PASSWORD_RESET_ORIGIN: "https://team.example/hidden", NODE_ENV: "production" }), null);
+  assert.equal(passwordRecoveryRedirectUrl({ NODE_ENV: "production" }), null);
+  assert.equal(passwordRecoveryOrigin({ NODE_ENV: "development" }), "http://localhost:3000");
+});
+
+test("password recovery is generic, PKCE-compatible and preserves invite setup", async () => {
+  const [login, forgotPage, forgotAction, confirmRoute, setPasswordPage, setPasswordAction] = await Promise.all([
+    readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/forgot-password/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/forgot-password/actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/set-password/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/set-password/actions.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(login, /href="\/auth\/forgot-password"/);
+  assert.match(forgotPage, /Аюулгүй байдлын үүднээс/);
+  assert.match(forgotAction, /resetPasswordForEmail/);
+  assert.match(forgotAction, /Хүсэлтийг хүлээн авлаа/);
+  assert.match(forgotAction, /error\.code/);
+  assert.doesNotMatch(forgotAction, /error\.message|console\.(log|error|warn)\(.*email/);
+  assert.match(confirmRoute, /exchangeCodeForSession/);
+  assert.match(confirmRoute, /verifyOtp/);
+  assert.match(confirmRoute, /SUPPORTED_EMAIL_OTP_TYPES/);
+  assert.match(confirmRoute, /type === "recovery"/);
+  assert.match(confirmRoute, /Cache-Control", "no-store"/);
+  assert.match(confirmRoute, /Referrer-Policy", "no-referrer"/);
+  assert.match(setPasswordPage, /flow.*recovery/);
+  assert.match(setPasswordAction, /if \(recoveryFlow\) redirect\("\/"\)/);
+  assert.match(setPasswordAction, /redirect\("\/onboarding"\)/);
+  assert.match(setPasswordAction, /is_anonymous/);
 });
 
 test("public sign-up is removed and membership is server-authoritative", async () => {
@@ -28,6 +69,7 @@ test("public sign-up is removed and membership is server-authoritative", async (
   assert.match(currentUser, /team_members/);
   assert.doesNotMatch(currentUser, /metadata\.(role|app_role)|user_metadata.*\["role"\]/);
   assert.match(membershipMigration, /create table if not exists public\.team_members/);
+  assert.match(membershipMigration, /status text not null default 'pending' check \(status in \('pending', 'active', 'disabled'\)\)/);
   assert.match(membershipMigration, /revoke all on table public\.team_members from anon, authenticated/);
   assert.doesNotMatch(membershipMigration, /grant (insert|update|delete).*team_members.*authenticated/i);
 });
@@ -94,11 +136,12 @@ test("workspace data uses canonical lesson IDs and verified database sources", a
 });
 
 test("admin access is server-only, fail-closed, and audited", async () => {
-  const [adminServer, adminRoute, adminClient, adminMigration] = await Promise.all([
+  const [adminServer, adminRoute, adminClient, adminMigration, membershipLifecycleMigration] = await Promise.all([
     readFile(new URL("../lib/supabase/admin.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/members/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/admin-console.tsx", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260830033918_admin_membership_operations.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260831135600_pending_assessment_membership.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(adminServer, /^import "server-only";/);
@@ -108,19 +151,67 @@ test("admin access is server-only, fail-closed, and audited", async () => {
   assert.match(adminRoute, /inviteUserByEmail/);
   assert.match(adminRoute, /admin_register_invited_member/);
   assert.match(adminRoute, /admin_update_team_member/);
-  assert.match(adminMigration, /values \(p_user_id, 'builder', 'disabled'\)/);
+  assert.match(adminMigration, /values \(p_user_id, 'builder', 'pending'\)/);
+  assert.match(adminMigration, /p_status not in \('pending', 'active', 'disabled'\)/);
   assert.match(adminMigration, /team_membership_audit_events/);
   assert.match(adminMigration, /An admin cannot demote or disable their own membership/);
   assert.match(adminMigration, /create or replace function public\.admin_update_team_member[\s\S]*security invoker/);
   assert.doesNotMatch(adminMigration, /create or replace function public\.admin_update_team_member[\s\S]{0,180}security definer/);
+  assert.match(membershipLifecycleMigration, /alter column status set default 'pending'/);
+  assert.match(membershipLifecycleMigration, /drop constraint if exists team_members_status_check/);
+  assert.match(membershipLifecycleMigration, /values \(p_user_id, 'builder', 'pending'\)/);
+  assert.match(membershipLifecycleMigration, /p_status not in \('pending', 'active', 'disabled'\)/);
+  assert.match(membershipLifecycleMigration, /create or replace function private\.admin_update_team_member/);
+});
+
+test("personal Success Map and AI mentor are consent-gated, adaptive, private and server-finalized", async () => {
+  const [privacyMigration, privacyRoute, assessmentMigration, assistantMigration, assessmentServer, assistantRoute, mentor] = await Promise.all([
+    readFile(new URL("../supabase/migrations/20260831135000_member_privacy_preferences.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/privacy/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260831135704_onboarding_assessment.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260831140034_ai_assistant_persistence.sql", import.meta.url), "utf8"),
+    readFile(new URL("../lib/assessment/server.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/assistant/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/ai/mentor.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(privacyMigration, /enable row level security/);
+  assert.match(privacyRoute, /withdraw_assessment/);
+  assert.match(privacyRoute, /\.eq\("assessment_consent", true\)/);
+  assert.match(assessmentMigration, /Assessment consent required/);
+  assert.match(assessmentMigration, /Tailored branch bank must contain exactly 300 questions/);
+  assert.match(assessmentMigration, /adaptive-branch-v2/);
+  assert.match(assessmentMigration, /v_primary_goal = 'board_director'/);
+  assert.match(assessmentMigration, /v_non_skip_answers >= 92/);
+  assert.match(assessmentMigration, /'appropriate', false/);
+  assert.match(assessmentMigration, /'promise', false/);
+  assert.equal((assessmentMigration.match(/member\.status in \('pending', 'active'\)/g) ?? []).length, 7);
+  assert.equal((assessmentMigration.match(/is_anonymous/g) ?? []).length, 7);
+  assert.match(assessmentServer, /clientAnswerId/);
+  assert.match(assistantMigration, /pg_advisory_xact_lock/);
+  assert.match(assistantMigration, /to service_role/);
+  assert.doesNotMatch(assistantMigration, /grant execute on function public\.complete_assistant_turn[\s\S]{0,180}to authenticated/);
+  assert.match(assistantMigration, /create or replace function public\.withdraw_assessment_consent\(\)[\s\S]*security invoker/);
+  assert.doesNotMatch(assistantMigration, /create or replace function public\.withdraw_assessment_consent\(\)[\s\S]{0,220}security definer/);
+  assert.match(assistantMigration, /p_actor is distinct from auth\.uid\(\)/);
+  assert.match(assistantMigration, /member_privacy_cancel_pending_assistant_turns/);
+  assert.match(assistantRoute, /createPersonalizationServiceClient/);
+  assert.match(assistantRoute, /fail_assistant_turn/);
+  assert.match(assistantRoute, /privacy_consent_required/);
+  assert.match(mentor, /<profile_data>/);
+  assert.match(mentor, /zeroDataRetention: true/);
+  assert.match(mentor, /Автоматаар нийтэлсэн, компанийн баталсан гэж бүү хэл/);
 });
 
 test("CI runs isolated database policy tests before the application build", async () => {
-  const [workflow, membershipTest, contentTest, adminTest] = await Promise.all([
+  const [workflow, membershipTest, contentTest, adminTest, assessmentTest, assistantTest, privacyTest] = await Promise.all([
     readFile(new URL("../.github/workflows/verify.yml", import.meta.url), "utf8"),
     readFile(new URL("../supabase/tests/001_membership_rls.test.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/tests/002_content_workflow.test.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/tests/003_admin_membership.test.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/tests/004_onboarding_assessment.test.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/tests/005_ai_assistant.test.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/tests/006_privacy_preferences.test.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(workflow, /supabase\/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520/);
@@ -129,5 +220,8 @@ test("CI runs isolated database policy tests before the application build", asyn
   assert.match(workflow, /supabase test db supabase\/tests/);
   assert.match(membershipTest, /select plan\(/);
   assert.match(contentTest, /select plan\(/);
-  assert.match(adminTest, /select plan\(/);
+  assert.match(adminTest, /select plan\(16\)/);
+  assert.match(assessmentTest, /select plan\(82\)/);
+  assert.match(assistantTest, /select plan\(50\)/);
+  assert.match(privacyTest, /select plan\(13\)/);
 });

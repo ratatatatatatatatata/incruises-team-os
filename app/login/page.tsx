@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "../brand";
 import { login } from "./actions";
@@ -23,11 +24,12 @@ export default async function LoginPage({
 
         {!configured && <p className="auth-message error" role="alert">Supabase environment variable тохируулаагүй байна.</p>}
         {params.error && <p className="auth-message error" role="alert">{params.error}</p>}
-        {params.message && <p className="auth-message success">{params.message}</p>}
+        {params.message && <p className="auth-message success" role="status">{params.message}</p>}
 
         <form className="signin-form">
           <label>Имэйл<input name="email" type="email" autoComplete="email" required placeholder="name@example.com" /></label>
           <label>Нууц үг<input name="password" type="password" autoComplete="current-password" required minLength={8} /></label>
+          <Link className="signin-link" href="/auth/forgot-password">Нууц үгээ мартсан уу?</Link>
           <div className="signin-actions">
             <button className="primary-button" formAction={login} disabled={!configured}>Нэвтрэх</button>
           </div>

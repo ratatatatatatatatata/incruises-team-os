@@ -9,8 +9,8 @@ create table if not exists public.team_membership_audit_events (
   ),
   old_role text check (old_role is null or old_role in ('builder', 'coach', 'director', 'admin')),
   new_role text not null check (new_role in ('builder', 'coach', 'director', 'admin')),
-  old_status text check (old_status is null or old_status in ('active', 'disabled')),
-  new_status text not null check (new_status in ('active', 'disabled')),
+  old_status text check (old_status is null or old_status in ('pending', 'active', 'disabled')),
+  new_status text not null check (new_status in ('pending', 'active', 'disabled')),
   created_at timestamptz not null default now()
 );
 
@@ -64,7 +64,7 @@ begin
 
   -- New identities never receive workspace access automatically.
   insert into public.team_members (user_id, role, status)
-  values (p_user_id, 'builder', 'disabled');
+  values (p_user_id, 'builder', 'pending');
 
   insert into public.team_membership_audit_events (
     actor_id,
@@ -73,7 +73,7 @@ begin
     new_role,
     new_status
   )
-  values (v_actor, p_user_id, 'membership_created', 'builder', 'disabled');
+  values (v_actor, p_user_id, 'membership_created', 'builder', 'pending');
 end;
 $$;
 
@@ -101,7 +101,7 @@ begin
   if p_role is null or p_role not in ('builder', 'coach', 'director', 'admin') then
     raise exception using errcode = '22023', message = 'Invalid team role';
   end if;
-  if p_status is null or p_status not in ('active', 'disabled') then
+  if p_status is null or p_status not in ('pending', 'active', 'disabled') then
     raise exception using errcode = '22023', message = 'Invalid membership status';
   end if;
 
