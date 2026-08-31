@@ -102,7 +102,15 @@ Invite template-ийн холбоос:
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password
 ```
 
-Hosted Supabase Auth дээр public email sign-up болон ашигладаггүй provider-уудыг OFF, leaked-password protection-ийг ON болгоно. Repository дахь `enable_signup = false` нь local parity; hosted setting-ийг Dashboard/Management API дээр тусад нь баталгаажуулна.
+Password recovery template-ийн холбоос:
+
+```text
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=%2Fauth%2Fset-password%3Fflow%3Drecovery
+```
+
+Default Supabase recovery template ашиглаж байгаа үед `/auth/confirm` route нь PKCE `code` callback-ийг мөн дэмжинэ. Production/custom domain дээр `PASSWORD_RESET_ORIGIN`-ийг server-only environment variable болгон тохируулж, тухайн origin-ийн `/auth/confirm` URL-ийг Supabase Auth redirect allowlist-д нэмнэ. Vercel preview нь deployment-ийн `VERCEL_URL`-ийг автоматаар ашиглана.
+
+Hosted Supabase Auth дээр public email sign-up болон ашигладаггүй provider-уудыг OFF, leaked-password protection болон secure password change-ийг ON болгоно. Repository дахь `enable_signup = false`, `secure_password_change = true` нь local parity; hosted setting-үүдийг Dashboard/Management API дээр тусад нь баталгаажуулна. Password recovery form-ийн abuse хамгаалалтад hosted CAPTCHA эсвэл Vercel WAF rate limit-ийг production launch-аас өмнө баталгаажуулна.
 
 Шинэ урилгатай auth user `pending` membership-ээр зөвхөн Success Map onboarding-оо хийж чадна; Team OS workspace автоматаар нээгдэхгүй. Админ `public.team_members` дахь membership-ийг тусад нь `active` болгоно. Эрх цуцлахдаа `disabled` ашиглана. Role-г `user_metadata` эсвэл `user_profiles.role`-оос authorization-д ашиглахгүй.
 

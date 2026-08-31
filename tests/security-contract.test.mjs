@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { safeNextPath } from "../app/auth/redirects.mjs";
+import { passwordRecoveryOrigin, passwordRecoveryRedirectUrl } from "../app/auth/recovery-url.mjs";
 
 test("auth redirect accepts only same-origin relative paths", () => {
   const origin = "https://team.example";
@@ -12,6 +13,46 @@ test("auth redirect accepts only same-origin relative paths", () => {
   assert.equal(safeNextPath("/%5cevil.example/path", origin), "/");
   assert.equal(safeNextPath("https://evil.example/path", origin), "/");
   assert.equal(safeNextPath(null, origin), "/");
+});
+
+test("password recovery uses only operator-controlled callback origins", () => {
+  assert.equal(
+    passwordRecoveryRedirectUrl({ PASSWORD_RESET_ORIGIN: "https://team.example", NODE_ENV: "production" }),
+    "https://team.example/auth/confirm?next=%2Fauth%2Fset-password%3Fflow%3Drecovery",
+  );
+  assert.equal(passwordRecoveryOrigin({ VERCEL_URL: "preview-team.vercel.app", NODE_ENV: "production" }), "https://preview-team.vercel.app");
+  assert.equal(passwordRecoveryOrigin({ PASSWORD_RESET_ORIGIN: "http://evil.example", NODE_ENV: "production" }), null);
+  assert.equal(passwordRecoveryOrigin({ PASSWORD_RESET_ORIGIN: "https://team.example/hidden", NODE_ENV: "production" }), null);
+  assert.equal(passwordRecoveryRedirectUrl({ NODE_ENV: "production" }), null);
+  assert.equal(passwordRecoveryOrigin({ NODE_ENV: "development" }), "http://localhost:3000");
+});
+
+test("password recovery is generic, PKCE-compatible and preserves invite setup", async () => {
+  const [login, forgotPage, forgotAction, confirmRoute, setPasswordPage, setPasswordAction] = await Promise.all([
+    readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/forgot-password/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/forgot-password/actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/set-password/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/set-password/actions.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(login, /href="\/auth\/forgot-password"/);
+  assert.match(forgotPage, /Аюулгүй байдлын үүднээс/);
+  assert.match(forgotAction, /resetPasswordForEmail/);
+  assert.match(forgotAction, /Хүсэлтийг хүлээн авлаа/);
+  assert.match(forgotAction, /error\.code/);
+  assert.doesNotMatch(forgotAction, /error\.message|console\.(log|error|warn)\(.*email/);
+  assert.match(confirmRoute, /exchangeCodeForSession/);
+  assert.match(confirmRoute, /verifyOtp/);
+  assert.match(confirmRoute, /SUPPORTED_EMAIL_OTP_TYPES/);
+  assert.match(confirmRoute, /type === "recovery"/);
+  assert.match(confirmRoute, /Cache-Control", "no-store"/);
+  assert.match(confirmRoute, /Referrer-Policy", "no-referrer"/);
+  assert.match(setPasswordPage, /flow.*recovery/);
+  assert.match(setPasswordAction, /if \(recoveryFlow\) redirect\("\/"\)/);
+  assert.match(setPasswordAction, /redirect\("\/onboarding"\)/);
+  assert.match(setPasswordAction, /is_anonymous/);
 });
 
 test("public sign-up is removed and membership is server-authoritative", async () => {

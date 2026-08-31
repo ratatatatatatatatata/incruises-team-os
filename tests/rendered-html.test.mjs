@@ -65,6 +65,7 @@ test("keeps production Supabase auth safeguards in version control", async () =>
   assert.match(config, /site_url = "https:\/\/incruises-team-os\.vercel\.app"/);
   assert.match(config, /enable_signup = false/);
   assert.match(config, /enable_confirmations = true/);
+  assert.match(config, /secure_password_change = true/);
   assert.match(config, /otp_length = 8/);
   assert.match(config, /enroll_enabled = true/);
   assert.match(config, /verify_enabled = true/);
