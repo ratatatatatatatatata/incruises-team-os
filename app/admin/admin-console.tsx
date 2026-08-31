@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import styles from "./admin.module.css";
 
 type TeamRole = "builder" | "coach" | "director" | "admin";
-type MembershipStatus = "active" | "disabled";
+type MembershipStatus = "pending" | "active" | "disabled";
 
 type AdminUser = {
   id: string;
@@ -52,6 +52,7 @@ const roleLabels: Record<TeamRole, string> = {
 };
 
 const statusLabels: Record<MembershipStatus, string> = {
+  pending: "Onboarding",
   active: "Идэвхтэй",
   disabled: "Хаалттай",
 };
@@ -98,7 +99,7 @@ function MemberRow({
   onChanged: (message: string) => Promise<void>;
 }) {
   const [role, setRole] = useState<TeamRole>(user.membership?.role ?? "builder");
-  const [status, setStatus] = useState<MembershipStatus>(user.membership?.status ?? "disabled");
+  const [status, setStatus] = useState<MembershipStatus>(user.membership?.status ?? "pending");
   const membershipVersion = `${user.membership?.role ?? "none"}:${user.membership?.status ?? "none"}`;
   const [serverMembershipVersion, setServerMembershipVersion] = useState(membershipVersion);
   const [saving, setSaving] = useState(false);
@@ -109,7 +110,7 @@ function MemberRow({
   if (serverMembershipVersion !== membershipVersion) {
     setServerMembershipVersion(membershipVersion);
     setRole(user.membership?.role ?? "builder");
-    setStatus(user.membership?.status ?? "disabled");
+    setStatus(user.membership?.status ?? "pending");
   }
 
   async function registerMembership() {
@@ -117,7 +118,7 @@ function MemberRow({
     setError(null);
     try {
       await postAdminAction({ action: "register_membership", userId: user.id });
-      await onChanged(`${emailLabel}: disabled builder membership үүслээ.`);
+      await onChanged(`${emailLabel}: onboarding хүлээж буй builder membership үүслээ.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Membership үүсгэж чадсангүй.");
     } finally {
@@ -129,7 +130,7 @@ function MemberRow({
     if (!user.membership) return;
 
     const removesAdmin = user.membership.role === "admin" && role !== "admin";
-    const disablesAccess = user.membership.status === "active" && status === "disabled";
+    const disablesAccess = user.membership.status === "active" && status !== "active";
     if (
       (removesAdmin || disablesAccess) &&
       !window.confirm(`${emailLabel} хэрэглэгчийн одоогийн эрхийг өөрчлөхөө баталгаажуулна уу.`)
@@ -223,8 +224,8 @@ function MemberRow({
       ) : (
         <div className={styles.memberControls}>
           <p className={styles.noMembership}>Workspace membership бүртгэлгүй.</p>
-          <button className={styles.primaryButton} type="button" onClick={registerMembership} aria-label={`${emailLabel}: disabled membership үүсгэх`} disabled={controlsDisabled}>
-            {saving ? "Үүсгэж байна…" : "Disabled membership үүсгэх"}
+          <button className={styles.primaryButton} type="button" onClick={registerMembership} aria-label={`${emailLabel}: onboarding membership үүсгэх`} disabled={controlsDisabled}>
+            {saving ? "Үүсгэж байна…" : "Onboarding membership үүсгэх"}
           </button>
         </div>
       )}
@@ -287,7 +288,7 @@ export function AdminConsole() {
       await postAdminAction({ action: "invite", email });
       const invitedEmail = email;
       setEmail("");
-      setNotice(`${invitedEmail} рүү урилга илгээлээ. Access нь default-аар хаалттай.`);
+      setNotice(`${invitedEmail} рүү урилга илгээлээ. Тэр хүн зөвхөн onboarding-оо эхлүүлэх эрхтэй.`);
       if (page !== 1) setPage(1);
       else await loadUsers(1);
     } catch (requestError) {
@@ -309,7 +310,7 @@ export function AdminConsole() {
         <div>
           <p className={styles.eyebrow}>INVITE-ONLY</p>
           <h2>Шинэ хэрэглэгч урих</h2>
-          <p>Урилга үүсэхэд builder membership автоматаар үүсэх боловч access нь идэвхгүй байна.</p>
+          <p>Урилга үүсэхэд builder membership автоматаар үүснэ. Team workspace access-ийг админ дараа нь идэвхжүүлнэ.</p>
         </div>
         <form onSubmit={invite} className={styles.inviteForm}>
           <label htmlFor="admin-invite-email">Имэйл</label>
@@ -333,7 +334,7 @@ export function AdminConsole() {
       </section>
 
       <section className={styles.guardrails} aria-label="Admin safety rules">
-        <span>New access: disabled</span>
+        <span>New access: onboarding only</span>
         <span>Self-lockout: blocked</span>
         <span>Last admin: protected</span>
         <span>Changes: audited RPC</span>

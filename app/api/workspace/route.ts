@@ -74,7 +74,7 @@ async function authorizedContext(): Promise<AuthContext> {
     .maybeSingle();
   if (membershipError) throw membershipError;
 
-  const member = membership as { role: TeamRole; status: "active" | "disabled" } | null;
+  const member = membership as { role: TeamRole; status: "pending" | "active" | "disabled" } | null;
   if (!member || member.status !== "active") throw new WorkspaceError(403, "Team access is not active");
 
   return { supabase, userId, role: member.role };

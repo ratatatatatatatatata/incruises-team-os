@@ -3,7 +3,25 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(14);
+select plan(16);
+
+select ok(
+  (
+    select
+      position(
+        'pg_catalog.hashtextextended(''insuccess-member-state:'' || p_user_id::text, 0)'
+        in locked.definition
+      ) > 0
+      and position('insuccess-member-state:' in locked.definition)
+        < position('select role, status' in locked.definition)
+    from (
+      select pg_get_functiondef(
+        'private.admin_update_team_member(uuid,text,text)'::regprocedure
+      ) as definition
+    ) as locked
+  ),
+  'Membership updates take the target member-state lock before reading or mutating the target'
+);
 
 insert into auth.users (id, email)
 values
@@ -62,8 +80,19 @@ select is(
 
 select is(
   (select status from public.team_members where user_id = '30000000-0000-4000-8000-000000000004'),
-  'disabled',
-  'A newly registered membership fails closed as disabled'
+  'pending',
+  'A newly registered membership remains pending until an admin activates it'
+);
+
+select is(
+  (
+    select new_status
+    from public.team_membership_audit_events
+    where target_user_id = '30000000-0000-4000-8000-000000000004'
+      and event_type = 'membership_created'
+  ),
+  'pending',
+  'The membership audit trail records the invited state as pending'
 );
 
 set local role authenticated;

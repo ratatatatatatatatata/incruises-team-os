@@ -17,5 +17,5 @@ export async function setPassword(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password });
   if (error) redirect("/auth/set-password?error=Нууц үгийг хадгалж чадсангүй. Өөр хүчтэй нууц үг сонгоно уу.");
 
-  redirect("/");
+  redirect("/onboarding");
 }

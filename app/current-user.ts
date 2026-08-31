@@ -1,12 +1,20 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
+export type OnboardingStatus = "not_started" | "baseline" | "analysis" | "tailored" | "ready_to_complete" | "completed";
+
 export type TeamOsUser = {
   userId: string;
   displayName: string;
   email: string;
   role: TeamRole | null;
   access: "active" | "disabled" | "pending";
+  assessmentConsent: boolean;
+  onboarding: {
+    status: OnboardingStatus;
+    baselineAnswered: number;
+    tailoredAnswered: number;
+  } | null;
 };
 
 export type TeamRole = "builder" | "coach" | "director" | "admin";
@@ -19,7 +27,8 @@ export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
   const claims = data?.claims as Record<string, unknown> | undefined;
   const userId = typeof claims?.sub === "string" ? claims.sub : null;
   const email = typeof claims?.email === "string" ? claims.email : null;
-  if (error || !userId || !email) return null;
+  const isAnonymous = claims?.is_anonymous === true || claims?.is_anonymous === "true";
+  if (error || !userId || !email || isAnonymous) return null;
 
   const metadata = claims?.user_metadata;
   const fullName =
@@ -27,16 +36,31 @@ export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
       ? metadata.full_name
       : null;
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("team_members")
-    .select("role,status")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const [membershipResult, onboardingResult, privacyResult] = await Promise.all([
+    supabase.from("team_members").select("role,status").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from("member_onboarding_state")
+      .select("status,baseline_answered,tailored_answered")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("member_privacy_preferences")
+      .select("assessment_consent")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
 
-  if (membershipError) throw membershipError;
+  if (membershipResult.error) throw membershipResult.error;
+  if (onboardingResult.error) throw onboardingResult.error;
+  if (privacyResult.error) throw privacyResult.error;
 
-  const activeMembership = membership as { role: TeamRole; status: "active" | "disabled" } | null;
-  const access = activeMembership?.status ?? "pending";
+  const activeMembership = membershipResult.data as { role: TeamRole; status: "pending" | "active" | "disabled" } | null;
+  const onboardingRow = onboardingResult.data as {
+    status: OnboardingStatus;
+    baseline_answered: number;
+    tailored_answered: number;
+  } | null;
+  const access = activeMembership?.status ?? "disabled";
   let displayName = fullName ?? email;
 
   if (access === "active") {
@@ -54,5 +78,13 @@ export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
     displayName,
     role: activeMembership?.role ?? null,
     access,
+    assessmentConsent: privacyResult.data?.assessment_consent === true,
+    onboarding: onboardingRow
+      ? {
+          status: onboardingRow.status,
+          baselineAnswered: onboardingRow.baseline_answered,
+          tailoredAnswered: onboardingRow.tailored_answered,
+        }
+      : null,
   };
 }

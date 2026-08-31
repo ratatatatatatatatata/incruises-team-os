@@ -3,7 +3,7 @@ begin;
 create table if not exists public.team_members (
   user_id uuid primary key references auth.users(id) on delete cascade,
   role text not null default 'builder' check (role in ('builder', 'coach', 'director', 'admin')),
-  status text not null default 'disabled' check (status in ('active', 'disabled')),
+  status text not null default 'pending' check (status in ('pending', 'active', 'disabled')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
