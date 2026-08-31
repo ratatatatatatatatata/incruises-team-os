@@ -464,7 +464,7 @@ select lives_ok(
       );
     end loop;
   end
-  $rate_limit$$$,
+  $rate_limit$;$$,
   'The first twelve turns in a minute are accepted'
 );
 
