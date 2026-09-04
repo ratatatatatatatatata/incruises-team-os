@@ -13,6 +13,7 @@ export default async function AccessPendingPage() {
   if (user.access === "active" && user.role) redirect("/");
 
   const disabled = user.access === "disabled";
+  const canResumeOnboarding = !disabled && user.onboarding?.status !== "completed";
 
   return (
     <main className="signin-shell">
@@ -27,7 +28,11 @@ export default async function AccessPendingPage() {
         </p>
         <p className="auth-message success">{user.email}</p>
         <div className="signin-actions">
-          <Link className="primary-button" href="/auth/set-password">Нууц үг тохируулах</Link>
+          {canResumeOnboarding ? (
+            <Link className="primary-button" href="/onboarding">Амжилтын зураглалаа үргэлжлүүлэх</Link>
+          ) : (
+            <Link className="primary-button" href="/auth/set-password">Нууц үг тохируулах</Link>
+          )}
         </div>
         <form action="/auth/signout" method="post">
           <button className="secondary-button" type="submit">Гарах</button>

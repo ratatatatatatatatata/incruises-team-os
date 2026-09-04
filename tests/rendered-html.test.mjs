@@ -2,23 +2,29 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("ships the Team OS application and Supabase login flow", async () => {
-  const [page, app, login, currentUser, brand] = await Promise.all([
+test("ships the personal inSuccess home, Team OS workspace and Supabase login flow", async () => {
+  const [page, home, workspace, app, login, currentUser, brand] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/member-home.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/workspace/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/team-os-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/current-user.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/brand.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /TeamOsApp/);
+  assert.match(page, /MemberHome/);
   assert.match(page, /redirect\("\/login"\)/);
+  assert.match(page, /redirect\("\/onboarding"\)/);
+  assert.match(workspace, /TeamOsApp/);
+  assert.match(home, /15 \+ 100/);
+  assert.match(home, /Хувийн AI туслах/);
   assert.match(app, /Хяналтын төв/);
   assert.match(app, /Content Studio/);
   assert.match(app, /Source Vault/);
   assert.match(login, /PRIVATE TEAM ACCESS/);
   assert.match(brand, /BRAND_NAME = "inSuccess"/);
-  assert.doesNotMatch(page + app + login + brand, /inCruises/);
+  assert.doesNotMatch(page + home + app + login + brand, /inCruises/);
   assert.match(currentUser, /getClaims/);
   assert.doesNotMatch(page + currentUser, /chatGPTSignInPath|oai-authenticated-user/);
 });
@@ -59,6 +65,7 @@ test("keeps production Supabase auth safeguards in version control", async () =>
   assert.match(config, /site_url = "https:\/\/incruises-team-os\.vercel\.app"/);
   assert.match(config, /enable_signup = false/);
   assert.match(config, /enable_confirmations = true/);
+  assert.match(config, /secure_password_change = true/);
   assert.match(config, /otp_length = 8/);
   assert.match(config, /enroll_enabled = true/);
   assert.match(config, /verify_enabled = true/);
