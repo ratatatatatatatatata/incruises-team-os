@@ -122,6 +122,19 @@ test("public sign-up is removed and membership is server-authoritative", async (
   assert.doesNotMatch(membershipMigration, /grant (insert|update|delete).*team_members.*authenticated/i);
 });
 
+test("production accepts Vercel Marketplace Supabase environment names", async () => {
+  const [supabaseConfig, nextConfig] = await Promise.all([
+    readFile(new URL("../lib/supabase/config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../next.config.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(supabaseConfig, /process\.env\.SUPABASE_URL/);
+  assert.match(supabaseConfig, /process\.env\.SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(supabaseConfig, /process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(nextConfig, /process\.env\.SUPABASE_URL/);
+  assert.doesNotMatch(supabaseConfig, /service_role|SUPABASE_SECRET_KEY/);
+});
+
 test("content approval uses role-separated database transitions", async () => {
   const [api, app, workflowMigration, finalMigration] = await Promise.all([
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),

@@ -24,9 +24,15 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const requestedType = searchParams.get("type");
-  const type = requestedType && SUPPORTED_EMAIL_OTP_TYPES.has(requestedType) ? requestedType : null;
+  const type = requestedType && SUPPORTED_EMAIL_OTP_TYPES.has(requestedType as EmailOtpType)
+    ? requestedType as EmailOtpType
+    : null;
   const requestedNext = safeNextPath(searchParams.get("next"), request.nextUrl.origin);
-  const next = type === "recovery" ? "/auth/set-password?flow=recovery" : type === "invite" ? "/auth/set-password" : requestedNext;
+  const next = type === "recovery"
+    ? "/auth/set-password?flow=recovery"
+    : type === "invite"
+      ? "/auth/set-password"
+      : requestedNext;
 
   if (code || (tokenHash && type)) {
     const supabase = await createClient();
