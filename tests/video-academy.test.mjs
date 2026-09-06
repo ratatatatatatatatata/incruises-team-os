@@ -24,6 +24,7 @@ test("ships a least-privilege Video Academy schema and guarded progress workflow
   assert.match(migration, /private\.is_active_academy_member\(\)/);
   assert.match(migration, /create or replace function public\.save_academy_watch_progress[\s\S]*security invoker/);
   assert.match(migration, /create or replace function private\.save_academy_watch_progress[\s\S]*security definer/);
+  assert.match(migration, /on conflict on constraint academy_watch_progress_pkey do update/);
   assert.match(migration, /v_percent >= 90/);
   assert.doesNotMatch(migration, /grant (insert|update|delete)[\s\S]{0,80}academy_courses to authenticated/i);
   assert.doesNotMatch(migration, /grant select \([\s\S]{0,200}mux_asset_id/);

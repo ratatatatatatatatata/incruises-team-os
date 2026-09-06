@@ -426,7 +426,7 @@ begin
     now(),
     now()
   )
-  on conflict (user_id, lesson_id) do update
+  on conflict on constraint academy_watch_progress_pkey do update
   set position_seconds = greatest(
         current_progress.position_seconds,
         excluded.position_seconds
