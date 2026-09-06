@@ -66,56 +66,78 @@ export const learningLevels = [
   },
 ] as const;
 
-export const officialSources = [
+export type OfficialSource = {
+  id: string;
+  title: string;
+  category: string;
+  url: string | null;
+  allowedForReview: boolean;
+  verifiedAt: string | null;
+  usableForReview: boolean;
+  versionLabel?: string | null;
+  effectiveAt?: string | null;
+  reviewDueAt?: string | null;
+  lastCheckedAt?: string | null;
+};
+
+// Read-only fallback for Source Vault when the live workspace cannot be loaded.
+// Draft creation never uses this list; the API validates the selected source in Supabase.
+export const fallbackOfficialSources: ReadonlyArray<OfficialSource> = [
   {
     id: "membership-agreement",
     title: "Membership Agreement 3.2",
     category: "Member",
-    status: "Current",
-    verified: "2026-04-02",
     url: "https://files.incruises.com/files/en/106EN_3.2_MEMBER_AGREEMENT.pdf",
+    allowedForReview: true,
+    verifiedAt: "2026-04-02",
+    usableForReview: true,
   },
   {
     id: "membership-faq",
     title: "Membership 3.X FAQ",
     category: "Product",
-    status: "Current",
-    verified: "2026",
     url: "https://files.incruises.com/en/EN_Membership_3.X_FAQs.pdf",
+    allowedForReview: true,
+    verifiedAt: null,
+    usableForReview: false,
   },
   {
     id: "partner-agreement",
     title: "Independent Partner Agreement",
     category: "Partner",
-    status: "Current",
-    verified: "2026 review",
     url: "https://files.incruises.com/files/en/104EN_3.2_INDEPENDENT_PARTNER_AGREEMENT.pdf",
+    allowedForReview: true,
+    verifiedAt: null,
+    usableForReview: false,
   },
   {
     id: "policies",
     title: "Policies & Procedures Manual",
     category: "Compliance",
-    status: "Current",
-    verified: "2026 review",
     url: "https://files.incruises.com/files/en/203EN_POLICIES_AND_PROCEDURES_MANUAL.pdf",
+    allowedForReview: true,
+    verifiedAt: null,
+    usableForReview: false,
   },
   {
     id: "brand-policy",
     title: "Marketing Materials & Branding Policy",
     category: "Content",
-    status: "Current",
-    verified: "2026 review",
     url: "https://files.incruises.com/files/en/207EN_MARKETING_MATERIALS_AND_BRANDING_POLICY.pdf",
+    allowedForReview: true,
+    verifiedAt: null,
+    usableForReview: false,
   },
   {
     id: "income-guide",
     title: "Income & Incentive Guide",
     category: "Compensation",
-    status: "Current",
-    verified: "2026 review",
     url: "https://files.incruises.com/files/en/214EN_INCOME_AND_INCENTIVE_GUIDE.pdf",
+    allowedForReview: true,
+    verifiedAt: null,
+    usableForReview: false,
   },
-] as const;
+];
 
 export type WorkspacePayload = {
   viewer: {
@@ -124,6 +146,7 @@ export type WorkspacePayload = {
     canRecordCorporateApproval: boolean;
   };
   progress: Array<{ lessonId: string; status: string; score: number | null }>;
+  officialSources: OfficialSource[];
   drafts: Array<{
     id: number;
     title: string;

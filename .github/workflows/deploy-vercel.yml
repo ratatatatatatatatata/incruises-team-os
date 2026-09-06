@@ -17,33 +17,82 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || vars.VERCEL_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.16.0
           run_install: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.13.0
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Validate deployment credential presence
+        run: pnpm run preflight:deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.116.0
+
+      - name: Start isolated Supabase database
+        run: supabase db start
+
+      - name: Test database policies and workflows
+        run: supabase test db supabase/tests
+
       - run: pnpm run lint
       - run: pnpm run typecheck
-      - run: pnpm test
-      - run: pnpm dlx vercel@58.9.0 pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - run: pnpm run test:source
+
+      - name: Pull production environment
+        run: pnpm dlx vercel@58.9.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      - run: pnpm dlx vercel@58.9.0 build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Validate production application environment
+        run: pnpm run preflight -- --env-file .vercel/.env.production.local --vercel-runtime --require-signed-video
+
+      - name: Verify production database schema contract
+        run: pnpm run preflight:schema -- --env-file .vercel/.env.production.local
+
+      - name: Build production artifact
+        run: pnpm dlx vercel@58.9.0 build --prod --token="$VERCEL_TOKEN"
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      - run: pnpm dlx vercel@58.9.0 deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy production artifact
+        id: deploy
+        run: |
+          deployment_url="$(pnpm dlx vercel@58.9.0 deploy --yes --prebuilt --prod --token="$VERCEL_TOKEN")"
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Verify production readiness endpoints
+        run: pnpm run load:smoke
+        env:
+          LOAD_BASE_URL: ${{ steps.deploy.outputs.url }}
+          LOAD_REQUESTS: "12"
+          LOAD_CONCURRENCY: "3"
+          LOAD_MAX_P95_MS: "5000"

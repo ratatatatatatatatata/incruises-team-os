@@ -1,0 +1,50 @@
+.prompt {
+  position: fixed;
+  z-index: 100;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(460px, calc(100vw - 32px));
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto 36px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid rgba(112, 190, 255, 0.34);
+  border-radius: 16px;
+  background: #071426;
+  color: #fff;
+  box-shadow: 0 18px 60px rgba(2, 12, 28, 0.34);
+}
+
+.mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #2188e8;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.prompt strong { display: block; font-size: 15px; }
+.prompt p { margin: 3px 0 0; color: #c8d7e8; font-size: 12px; line-height: 1.4; }
+
+.prompt button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.install { padding: 0 16px; background: #fff; color: #0b5fae; }
+.dismiss { background: transparent; color: #c8d7e8; font-size: 22px; }
+.prompt button:focus-visible { outline: 3px solid #77c7ff; outline-offset: 3px; }
+
+@media (max-width: 520px) {
+  .prompt { grid-template-columns: 42px minmax(0, 1fr) 36px; }
+  .install { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .dismiss { grid-column: 3; grid-row: 1; }
+}

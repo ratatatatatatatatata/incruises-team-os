@@ -1,7 +1,7 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { safeNextPath } from "../redirects.mjs";
+import { authMessagePath, safeNextPath } from "../redirects.mjs";
 
 const SUPPORTED_EMAIL_OTP_TYPES = new Set<EmailOtpType>([
   "signup",
@@ -43,6 +43,6 @@ export async function GET(request: NextRequest) {
   }
 
   return redirectWithoutAuthArtifacts(
-    new URL("/login?error=Баталгаажуулах холбоос хүчингүй эсвэл хугацаа дууссан байна.", request.url),
+    new URL(authMessagePath("/login", "error", "Баталгаажуулах холбоос хүчингүй эсвэл хугацаа дууссан байна."), request.url),
   );
 }

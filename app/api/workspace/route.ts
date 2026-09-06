@@ -1,8 +1,10 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
-import { learningLevels, officialSources } from "../../team-os-data";
+import { learningLevels } from "../../team-os-data";
 
-const allowedSourceIds = new Set<string>(officialSources.map((source) => source.id));
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 const allowedLessonIds = new Set<string>(learningLevels.flatMap((level) => level.lessons.map((lesson) => lesson.id)));
 const allowedChannels = new Set(["Facebook", "Instagram", "Short video", "FAQ", "Message"]);
 
@@ -15,6 +17,18 @@ type AuthContext = {
 };
 
 type LessonRow = { lesson_id: string; status: string; score: number | null };
+type SourceRow = {
+  id: string;
+  title: string;
+  category: string;
+  url: string | null;
+  allowed_for_review: boolean;
+  verified_at: string | null;
+  version_label: string | null;
+  effective_at: string | null;
+  review_due_at: string | null;
+  last_checked_at: string | null;
+};
 type DraftRow = {
   id: number;
   owner_id: string;
@@ -54,7 +68,9 @@ async function authorizedContext(): Promise<AuthContext> {
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims as Record<string, unknown> | undefined;
   const userId = typeof claims?.sub === "string" ? claims.sub : null;
-  if (error || !userId) throw new WorkspaceError(401, "Sign in required");
+  if (error || !userId || claims?.is_anonymous === true || claims?.is_anonymous === "true") {
+    throw new WorkspaceError(401, "Sign in required");
+  }
 
   const { data: membership, error: membershipError } = await supabase
     .from("team_members")
@@ -63,7 +79,7 @@ async function authorizedContext(): Promise<AuthContext> {
     .maybeSingle();
   if (membershipError) throw membershipError;
 
-  const member = membership as { role: TeamRole; status: "active" | "disabled" } | null;
+  const member = membership as { role: TeamRole; status: "pending" | "active" | "disabled" } | null;
   if (!member || member.status !== "active") throw new WorkspaceError(403, "Team access is not active");
 
   return { supabase, userId, role: member.role };
@@ -76,20 +92,74 @@ function transitionFailure(error: { code?: string; message?: string }): never {
   throw error;
 }
 
+function canonicalLessonId(value: string): string {
+  const trimmed = value.trim();
+  const match = /^l(\d+)-0*(\d+)$/i.exec(trimmed);
+  if (!match) return trimmed;
+
+  const level = match[1].replace(/^0+(?=\d)/, "");
+  const lesson = match[2].replace(/^0+(?=\d)/, "");
+  return `l${level}-${lesson}`;
+}
+
+function sourceUsableForReview(source: Pick<SourceRow, "allowed_for_review" | "verified_at" | "effective_at" | "review_due_at">): boolean {
+  const today = new Date().toISOString().slice(0, 10);
+  return Boolean(
+    source.allowed_for_review &&
+    source.verified_at &&
+    source.verified_at <= today &&
+    (!source.effective_at || source.effective_at <= today) &&
+    (!source.review_due_at || source.review_due_at >= today),
+  );
+}
+
 function serverError(error: unknown) {
   if (error instanceof WorkspaceError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
 
-  console.error("Workspace request failed", error);
+  console.error("Workspace request failed");
   return Response.json({ error: "Workspace service unavailable" }, { status: 500 });
+}
+
+function assertSameOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== new URL(request.url).origin) {
+    throw new WorkspaceError(403, "Request origin is not allowed");
+  }
+}
+
+async function readWorkspaceBody(request: Request): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type") ?? "";
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (!contentType.includes("application/json") || contentLength > 32_768) {
+    throw new WorkspaceError(400, "A JSON request smaller than 32KB is required");
+  }
+
+  const rawBody = await request.text();
+  if (new TextEncoder().encode(rawBody).byteLength > 32_768) {
+    throw new WorkspaceError(400, "A JSON request smaller than 32KB is required");
+  }
+
+  try {
+    const body = JSON.parse(rawBody) as unknown;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid shape");
+    return body as Record<string, unknown>;
+  } catch {
+    throw new WorkspaceError(400, "Request JSON is invalid");
+  }
 }
 
 export async function GET() {
   try {
     const { supabase, userId, role } = await authorizedContext();
-    const [progressResult, draftsResult, tasksResult] = await Promise.all([
+    const [progressResult, sourcesResult, draftsResult, tasksResult] = await Promise.all([
       supabase.from("lesson_progress").select("lesson_id,status,score").order("completed_at", { ascending: false }),
+      supabase
+        .from("official_sources")
+        .select("id,title,category,url,allowed_for_review,verified_at,version_label,effective_at,review_due_at,last_checked_at")
+        .order("title", { ascending: true })
+        .limit(200),
       supabase
         .from("content_drafts")
         .select("id,owner_id,title,channel,source_id,status,excerpt,created_at,review_note,corporate_approval_ref,corporate_approved_at")
@@ -102,13 +172,29 @@ export async function GET() {
         .limit(40),
     ]);
 
-    const firstError = progressResult.error ?? draftsResult.error ?? tasksResult.error;
+    const firstError = progressResult.error ?? sourcesResult.error ?? draftsResult.error ?? tasksResult.error;
     if (firstError) throw firstError;
 
-    const progress = ((progressResult.data ?? []) as LessonRow[]).map((row) => ({
-      lessonId: row.lesson_id,
-      status: row.status,
-      score: row.score,
+    const progressByLesson = new Map<string, { lessonId: string; status: string; score: number | null }>();
+    for (const row of (progressResult.data ?? []) as LessonRow[]) {
+      const lessonId = canonicalLessonId(row.lesson_id);
+      if (!progressByLesson.has(lessonId)) {
+        progressByLesson.set(lessonId, { lessonId, status: row.status, score: row.score });
+      }
+    }
+    const progress = Array.from(progressByLesson.values());
+    const officialSources = ((sourcesResult.data ?? []) as SourceRow[]).map((row) => ({
+      id: row.id,
+      title: row.title,
+      category: row.category,
+      url: row.url,
+      allowedForReview: row.allowed_for_review,
+      verifiedAt: row.verified_at,
+      usableForReview: sourceUsableForReview(row),
+      versionLabel: row.version_label,
+      effectiveAt: row.effective_at,
+      reviewDueAt: row.review_due_at,
+      lastCheckedAt: row.last_checked_at,
     }));
     const drafts = ((draftsResult.data ?? []) as DraftRow[]).map((row) => ({
       id: row.id,
@@ -140,6 +226,7 @@ export async function GET() {
         canRecordCorporateApproval: role === "admin",
       },
       progress,
+      officialSources,
       drafts,
       memberTasks,
     });
@@ -150,32 +237,35 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    assertSameOrigin(request);
+    const body = await readWorkspaceBody(request);
     const { supabase, userId, role } = await authorizedContext();
-    const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
 
     if (action === "toggle_lesson") {
-      const lessonId = String(body.lessonId ?? "");
+      const lessonId = canonicalLessonId(String(body.lessonId ?? ""));
       if (!allowedLessonIds.has(lessonId)) return Response.json({ error: "Unknown lesson" }, { status: 400 });
 
-      const { data: existing, error: selectError } = await supabase
+      const { data: progressRows, error: selectError } = await supabase
         .from("lesson_progress")
         .select("lesson_id")
         .eq("user_id", userId)
-        .eq("lesson_id", lessonId)
-        .maybeSingle();
+        .limit(200);
       if (selectError) throw selectError;
 
-      if (existing) {
+      const matchingIds = ((progressRows ?? []) as Array<{ lesson_id: string }>)
+        .map((row) => row.lesson_id)
+        .filter((storedLessonId) => canonicalLessonId(storedLessonId) === lessonId);
+
+      if (matchingIds.length > 0) {
         const { data: deleted, error } = await supabase
           .from("lesson_progress")
           .delete()
           .eq("user_id", userId)
-          .eq("lesson_id", lessonId)
-          .select("lesson_id")
-          .maybeSingle();
+          .in("lesson_id", matchingIds)
+          .select("lesson_id");
         if (error) throw error;
-        if (!deleted) throw new WorkspaceError(404, "Lesson progress not found");
+        if (!deleted || deleted.length === 0) throw new WorkspaceError(404, "Lesson progress not found");
         return Response.json({ completed: false });
       }
 
@@ -191,12 +281,23 @@ export async function POST(request: Request) {
     if (action === "create_draft") {
       const title = String(body.title ?? "").trim().slice(0, 140);
       const channel = String(body.channel ?? "");
-      const sourceId = String(body.sourceId ?? "");
-      if (!title || !allowedChannels.has(channel) || !allowedSourceIds.has(sourceId)) {
+      const sourceId = String(body.sourceId ?? "").trim();
+      if (!title || !allowedChannels.has(channel) || !sourceId || sourceId.length > 80) {
         return Response.json({ error: "Valid title, channel and official source are required" }, { status: 400 });
       }
 
-      const source = officialSources.find((item) => item.id === sourceId)!;
+      const { data: sourceRow, error: sourceError } = await supabase
+        .from("official_sources")
+        .select("id,title,allowed_for_review,verified_at,effective_at,review_due_at")
+        .eq("id", sourceId)
+        .maybeSingle();
+      if (sourceError) throw sourceError;
+
+      const source = sourceRow as Pick<SourceRow, "id" | "title" | "allowed_for_review" | "verified_at" | "effective_at" | "review_due_at"> | null;
+      if (!source || !sourceUsableForReview(source)) {
+        return Response.json({ error: "Review-д зөвшөөрсөн, хүчинтэй verification хугацаатай албан эх сурвалж шаардлагатай" }, { status: 409 });
+      }
+
       const excerpt = `${title}. Энэ ноорог нь “${source.title}” эх сурвалжид тулгуурласан. Нийтлэхийн өмнө claim бүрийг тусдаа хянагч шалгаж, компанийн approval reference-ийг админ бүртгэнэ.`;
       const { data: draft, error } = await supabase
         .from("content_drafts")

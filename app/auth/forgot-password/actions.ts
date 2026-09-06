@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { passwordRecoveryRedirectUrl } from "../recovery-url.mjs";
+import { authMessagePath } from "../redirects.mjs";
 
 function forgotPasswordRedirect(kind: "error" | "message", message: string): never {
-  redirect(`/auth/forgot-password?${kind}=${encodeURIComponent(message)}`);
+  redirect(authMessagePath("/auth/forgot-password", kind, message));
 }
 
 export async function requestPasswordReset(formData: FormData) {
@@ -39,6 +40,6 @@ export async function requestPasswordReset(formData: FormData) {
 
   forgotPasswordRedirect(
     "message",
-    "Хүсэлтийг хүлээн авлаа. Хэрэв энэ имэйлд бүртгэл байгаа бол холбоос очно. Inbox болон spam хавтсаа шалгана уу.",
+    "Хүсэлтийг хүлээн авлаа. Хэрэв энэ имэйлд бүртгэл байгаа бол холбоос очно. Inbox болон spam хавтсаа шалгаад, очоогүй бол 1 минутын дараа дахин оролдоно уу.",
   );
 }

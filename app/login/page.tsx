@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "../brand";
+import { safeNextPath } from "../auth/redirects.mjs";
 import { login } from "./actions";
 
 export const metadata: Metadata = { title: "Нэвтрэх" };
@@ -9,10 +10,11 @@ export const metadata: Metadata = { title: "Нэвтрэх" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; next?: string }>;
 }) {
   const params = await searchParams;
   const configured = isSupabaseConfigured();
+  const next = safeNextPath(params.next, "https://login.insuccess.invalid");
 
   return (
     <main className="signin-shell">
@@ -27,14 +29,20 @@ export default async function LoginPage({
         {params.message && <p className="auth-message success" role="status">{params.message}</p>}
 
         <form className="signin-form">
+          <input name="next" type="hidden" value={next} />
           <label>Имэйл<input name="email" type="email" autoComplete="email" required placeholder="name@example.com" /></label>
           <label>Нууц үг<input name="password" type="password" autoComplete="current-password" required minLength={8} /></label>
-          <Link href="/auth/forgot-password">Нууц үгээ мартсан уу?</Link>
+          <Link className="signin-link" href="/auth/forgot-password">Нууц үгээ мартсан уу?</Link>
           <div className="signin-actions">
             <button className="primary-button" formAction={login} disabled={!configured}>Нэвтрэх</button>
           </div>
         </form>
         <p className="signin-note">Шинэ эрхийг багийн админ урилгаар олгоно. Нэвтэрсэн account бүр Team OS-ийн өгөгдөлд автоматаар эрхтэй болохгүй.</p>
+        <nav className="signin-legal" aria-label="Хууль, нууцлалын холбоос">
+          <Link href="/legal/privacy">Нууцлалын мэдэгдэл</Link>
+          <Link href="/legal/terms">Үйлчилгээний нөхцөл</Link>
+          <Link href="/account-deletion">Account устгах хүсэлт</Link>
+        </nav>
       </section>
     </main>
   );

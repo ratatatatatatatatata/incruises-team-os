@@ -20,17 +20,25 @@ export default async function ForgotPasswordPage({
         <div className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></div>
         <p className="eyebrow">PASSWORD RECOVERY</p>
         <h1>{BRAND_NAME}<br />{PRODUCT_DESCRIPTOR}</h1>
-        <p className="signin-copy">Бүртгэлтэй имэйлээ оруулна уу. Шинэ нууц үг тохируулах нэг удаагийн холбоос илгээнэ.</p>
+        <p className="signin-copy">
+          Бүртгэлтэй имэйлээ оруулна уу. Бид шинэ нууц үг тохируулах нэг удаагийн холбоос илгээнэ.
+        </p>
+
         {!configured && <p className="auth-message error" role="alert">Supabase environment variable тохируулаагүй байна.</p>}
         {params.error && <p className="auth-message error" role="alert">{params.error}</p>}
         {params.message && <p className="auth-message success" role="status">{params.message}</p>}
+
         <form className="signin-form" action={requestPasswordReset}>
-          <label>Имэйл<input name="email" type="email" autoComplete="email" required maxLength={254} placeholder="name@example.com" /></label>
+          <label>
+            Имэйл
+            <input name="email" type="email" autoComplete="email" required maxLength={254} placeholder="name@example.com" />
+          </label>
           <div className="signin-actions">
             <button className="primary-button" type="submit" disabled={!configured}>Сэргээх холбоос авах</button>
           </div>
         </form>
-        <p><Link href="/login">Нэвтрэх хэсэг рүү буцах</Link></p>
+
+        <Link className="signin-link signin-link-back" href="/login">Нэвтрэх хэсэг рүү буцах</Link>
         <p className="signin-note">Аюулгүй байдлын үүднээс тухайн имэйл бүртгэлтэй эсэхийг дэлгэцээр харуулахгүй.</p>
       </section>
     </main>
