@@ -3,17 +3,21 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "../brand";
 import { getCurrentTeamOsUser } from "../current-user";
+import { loginPath } from "../auth/login-path.mjs";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Эрх хүлээгдэж байна" };
 
 export default async function AccessPendingPage() {
   const user = await getCurrentTeamOsUser();
-  if (!user) redirect("/login");
-  if (user.access === "active" && user.role) redirect("/");
+  if (!user) redirect(loginPath("/access-pending"));
+
+  const onboardingIncomplete = user.onboarding?.status !== "completed";
+  if (user.access === "active" && user.role && !onboardingIncomplete) redirect("/");
 
   const disabled = user.access === "disabled";
-  const canResumeOnboarding = !disabled && user.onboarding?.status !== "completed";
+  const canResumeOnboarding = !disabled && onboardingIncomplete;
+  const activeAssessmentPause = user.access === "active" && Boolean(user.role) && onboardingIncomplete;
 
   return (
     <main className="signin-shell">
@@ -24,6 +28,8 @@ export default async function AccessPendingPage() {
         <p className="signin-copy">
           {disabled
             ? "Таны Team OS эрх түр хаалттай байна. Багийн админтай холбогдоно уу."
+            : activeAssessmentPause
+              ? "Таны бөглөсөн хариулт хадгалагдсан. Бэлэн болох үедээ яг зогссон газраасаа үргэлжлүүлнэ үү."
             : "Нэвтрэлт баталгаажсан. Team OS-ийн багийн эрхийг админ идэвхжүүлсний дараа workspace нээгдэнэ."}
         </p>
         <p className="auth-message success">{user.email}</p>

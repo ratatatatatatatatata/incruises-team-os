@@ -1,3 +1,4 @@
+import { authInviteRedirectUrl } from "@/app/auth/recovery-url.mjs";
 import {
   AdminAccessError,
   createPrivilegedAdminClient,
@@ -52,8 +53,15 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
     throw new AdminRequestError(400, "invalid_request", "JSON хүсэлт шаардлагатай.");
   }
 
+  const rawBody = await request.text();
+  if (new TextEncoder().encode(rawBody).byteLength > 8_192) {
+    throw new AdminRequestError(400, "invalid_request", "JSON хүсэлт шаардлагатай.");
+  }
+
   try {
-    return (await request.json()) as Record<string, unknown>;
+    const body = JSON.parse(rawBody) as unknown;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid_shape");
+    return body as Record<string, unknown>;
   } catch {
     throw new AdminRequestError(400, "invalid_json", "Хүсэлтийн JSON буруу байна.");
   }
@@ -175,8 +183,16 @@ export async function POST(request: Request) {
 
     if (action === "invite") {
       const email = safeEmail(body.email);
+      const redirectTo = authInviteRedirectUrl();
+      if (!redirectTo) {
+        throw new AdminRequestError(
+          503,
+          "auth_redirect_unconfigured",
+          "Урилгын буцах хаяг тохируулагдаагүй байна.",
+        );
+      }
       const adminClient = createPrivilegedAdminClient(authorization);
-      const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email);
+      const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, { redirectTo });
 
       if (error || !data.user) {
         throw new AdminRequestError(

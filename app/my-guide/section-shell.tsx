@@ -43,6 +43,8 @@ export function SectionShell({ active, userName, eyebrow, title, description, ch
           <Link href="/assistant" aria-current={active === "assistant" ? "page" : undefined}>
             Дижитал ментор
           </Link>
+          <Link href="/academy">Academy</Link>
+          <Link href="/workspace">Team OS</Link>
           <Link href="/privacy">Нууцлал</Link>
         </nav>
 

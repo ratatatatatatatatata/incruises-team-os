@@ -25,11 +25,11 @@ export function passwordRecoveryOrigin(env = process.env) {
   const explicitOrigin = normalizeOrigin(env.PASSWORD_RESET_ORIGIN);
   if (explicitOrigin) return explicitOrigin;
 
-  const deploymentOrigin = normalizeOrigin(env.VERCEL_URL);
-  if (deploymentOrigin) return deploymentOrigin;
-
   const productionOrigin = normalizeOrigin(env.VERCEL_PROJECT_PRODUCTION_URL);
   if (productionOrigin) return productionOrigin;
+
+  const deploymentOrigin = normalizeOrigin(env.VERCEL_URL);
+  if (deploymentOrigin) return deploymentOrigin;
 
   if (env.NODE_ENV !== "production") return LOCAL_APP_ORIGIN;
   return null;
@@ -41,5 +41,14 @@ export function passwordRecoveryRedirectUrl(env = process.env) {
 
   const callback = new URL("/auth/confirm", origin);
   callback.searchParams.set("next", "/auth/set-password?flow=recovery");
+  return callback.toString();
+}
+
+export function authInviteRedirectUrl(env = process.env) {
+  const origin = passwordRecoveryOrigin(env);
+  if (!origin) return null;
+
+  const callback = new URL("/auth/confirm", origin);
+  callback.searchParams.set("next", "/auth/set-password");
   return callback.toString();
 }

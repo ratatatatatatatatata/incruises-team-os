@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "../../brand";
+import { authMessagePath } from "../redirects.mjs";
 import { setPassword } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -15,14 +16,16 @@ export default async function SetPasswordPage({
 }) {
   const params = await searchParams;
   const recoveryFlow = params.flow === "recovery";
-  if (!isSupabaseConfigured()) redirect("/login?error=Supabase project тохируулаагүй байна.");
+  if (!isSupabaseConfigured()) {
+    redirect(authMessagePath("/login", "error", "Supabase project тохируулаагүй байна."));
+  }
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims as Record<string, unknown> | undefined;
   const email = typeof claims?.email === "string" ? claims.email : null;
   const isAnonymous = claims?.is_anonymous === true || claims?.is_anonymous === "true";
   if (error || !claims?.sub || !email || isAnonymous) {
-    redirect("/login?error=Нууц үг тохируулах холбоос хүчингүй эсвэл хугацаа дууссан байна.");
+    redirect(authMessagePath("/login", "error", "Нууц үг тохируулах холбоос хүчингүй эсвэл хугацаа дууссан байна."));
   }
 
   return (

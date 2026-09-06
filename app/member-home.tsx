@@ -33,8 +33,9 @@ export function MemberHome({
         <nav className={styles.nav} aria-label="Хувийн цэс">
           <Link href="/my-guide">Миний Guide</Link>
           <Link href="/assistant">AI туслах</Link>
+          <Link href="/academy">Academy</Link>
           <Link href="/workspace">Team OS</Link>
-          {user.role === "admin" && <Link href="/admin">Admin</Link>}
+          {user.role === "admin" && <Link href="/admin">Супер админ</Link>}
         </nav>
         <form action="/auth/signout" method="post"><button type="submit">Гарах</button></form>
       </header>
@@ -86,6 +87,7 @@ export function MemberHome({
       </section>
 
       <section className={styles.paths} aria-label="Үндсэн хэрэгслүүд">
+        <Link href="/academy"><span>Video Academy</span><strong>Өөрийн хурдаар үзэж, үргэлжлүүлэх сургалт</strong><small>Нийтлэгдсэн видео хичээл ба үзсэн ахицаа нэг дор харна.</small></Link>
         <Link href="/my-guide"><span>Миний Guide</span><strong>7 хоног ба 30/60/90 хоногийн зам</strong><small>Яагаад энэ алхмыг санал болгосныг харна.</small></Link>
         <Link href="/assistant"><span>Хувийн AI туслах</span><strong>Өдөр бүр хамт ажиллах digital mentor</strong><small>Асуух, дасгал хийх, контентын ноорог бэлдэх.</small></Link>
         <Link href="/workspace"><span>Team OS</span><strong>Academy, Content Studio, Member Success</strong><small>Багийн хэрэгжүүлэлт ба хүний хяналттай workflow.</small></Link>

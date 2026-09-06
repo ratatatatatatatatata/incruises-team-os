@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { loadSuccessContext, requirePersonalizationContext } from "@/lib/ai/member-context";
 import { getCurrentTeamOsUser } from "./current-user";
+import { requireReadyMember } from "./member-access";
 import { MemberHome } from "./member-home";
 
 export const dynamic = "force-dynamic";
@@ -42,12 +42,10 @@ function boardRouteEnabled(value: unknown): boolean {
 }
 
 export default async function Home() {
-  const user = await getCurrentTeamOsUser();
-
-  if (!user) redirect("/login");
-  if (user.onboarding?.status !== "completed") redirect("/onboarding");
-  if (user.access !== "active" || !user.role) redirect("/access-pending");
-  if (!user.assessmentConsent) redirect("/privacy");
+  const user = requireReadyMember(await getCurrentTeamOsUser(), {
+    returnTo: "/",
+    requireAssessmentConsent: true,
+  });
 
   const context = await requirePersonalizationContext();
   const success = await loadSuccessContext(context);

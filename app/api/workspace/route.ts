@@ -2,6 +2,9 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { learningLevels } from "../../team-os-data";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 const allowedLessonIds = new Set<string>(learningLevels.flatMap((level) => level.lessons.map((lesson) => lesson.id)));
 const allowedChannels = new Set(["Facebook", "Instagram", "Short video", "FAQ", "Message"]);
 
@@ -65,7 +68,9 @@ async function authorizedContext(): Promise<AuthContext> {
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims as Record<string, unknown> | undefined;
   const userId = typeof claims?.sub === "string" ? claims.sub : null;
-  if (error || !userId) throw new WorkspaceError(401, "Sign in required");
+  if (error || !userId || claims?.is_anonymous === true || claims?.is_anonymous === "true") {
+    throw new WorkspaceError(401, "Sign in required");
+  }
 
   const { data: membership, error: membershipError } = await supabase
     .from("team_members")
@@ -113,8 +118,36 @@ function serverError(error: unknown) {
     return Response.json({ error: error.message }, { status: error.status });
   }
 
-  console.error("Workspace request failed", error);
+  console.error("Workspace request failed");
   return Response.json({ error: "Workspace service unavailable" }, { status: 500 });
+}
+
+function assertSameOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== new URL(request.url).origin) {
+    throw new WorkspaceError(403, "Request origin is not allowed");
+  }
+}
+
+async function readWorkspaceBody(request: Request): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type") ?? "";
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (!contentType.includes("application/json") || contentLength > 32_768) {
+    throw new WorkspaceError(400, "A JSON request smaller than 32KB is required");
+  }
+
+  const rawBody = await request.text();
+  if (new TextEncoder().encode(rawBody).byteLength > 32_768) {
+    throw new WorkspaceError(400, "A JSON request smaller than 32KB is required");
+  }
+
+  try {
+    const body = JSON.parse(rawBody) as unknown;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid shape");
+    return body as Record<string, unknown>;
+  } catch {
+    throw new WorkspaceError(400, "Request JSON is invalid");
+  }
 }
 
 export async function GET() {
@@ -204,8 +237,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    assertSameOrigin(request);
+    const body = await readWorkspaceBody(request);
     const { supabase, userId, role } = await authorizedContext();
-    const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
 
     if (action === "toggle_lesson") {

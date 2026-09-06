@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { safeNextPath } from "../app/auth/redirects.mjs";
-import { passwordRecoveryOrigin, passwordRecoveryRedirectUrl } from "../app/auth/recovery-url.mjs";
+import { authMessagePath, safeNextPath } from "../app/auth/redirects.mjs";
+import {
+  authInviteRedirectUrl,
+  passwordRecoveryOrigin,
+  passwordRecoveryRedirectUrl,
+} from "../app/auth/recovery-url.mjs";
 
 test("auth redirect accepts only same-origin relative paths", () => {
   const origin = "https://team.example";
@@ -21,10 +25,49 @@ test("password recovery uses only operator-controlled callback origins", () => {
     "https://team.example/auth/confirm?next=%2Fauth%2Fset-password%3Fflow%3Drecovery",
   );
   assert.equal(passwordRecoveryOrigin({ VERCEL_URL: "preview-team.vercel.app", NODE_ENV: "production" }), "https://preview-team.vercel.app");
+  assert.equal(
+    passwordRecoveryOrigin({
+      PASSWORD_RESET_ORIGIN: "https://auth.team.example",
+      VERCEL_PROJECT_PRODUCTION_URL: "team.example",
+      VERCEL_URL: "preview-team.vercel.app",
+      NODE_ENV: "production",
+    }),
+    "https://auth.team.example",
+  );
+  assert.equal(
+    passwordRecoveryOrigin({
+      VERCEL_PROJECT_PRODUCTION_URL: "team.example",
+      VERCEL_URL: "preview-team.vercel.app",
+      NODE_ENV: "production",
+    }),
+    "https://team.example",
+  );
+  assert.equal(
+    authInviteRedirectUrl({ PASSWORD_RESET_ORIGIN: "https://team.example", NODE_ENV: "production" }),
+    "https://team.example/auth/confirm?next=%2Fauth%2Fset-password",
+  );
   assert.equal(passwordRecoveryOrigin({ PASSWORD_RESET_ORIGIN: "http://evil.example", NODE_ENV: "production" }), null);
   assert.equal(passwordRecoveryOrigin({ PASSWORD_RESET_ORIGIN: "https://team.example/hidden", NODE_ENV: "production" }), null);
   assert.equal(passwordRecoveryRedirectUrl({ NODE_ENV: "production" }), null);
   assert.equal(passwordRecoveryOrigin({ NODE_ENV: "development" }), "http://localhost:3000");
+});
+
+test("auth message redirects percent-encode Unicode before creating headers", () => {
+  const path = authMessagePath(
+    "/auth/set-password?flow=recovery",
+    "error",
+    "Нууц үг тохируулах холбоос хүчингүй байна.",
+  );
+  const target = new URL(path, "https://team.example");
+  const location = Response.redirect(target).headers.get("location");
+
+  assert.equal(target.searchParams.get("flow"), "recovery");
+  assert.equal(target.searchParams.get("error"), "Нууц үг тохируулах холбоос хүчингүй байна.");
+  assert.doesNotMatch(path, /[^\x00-\x7F]/);
+  assert.ok(location);
+  assert.doesNotMatch(location, /[^\x00-\x7F]/);
+  assert.throws(() => authMessagePath("https://evil.example", "error", "no"), /must be internal/);
+  assert.throws(() => authMessagePath("/%5cevil.example", "error", "no"), /must be internal/);
 });
 
 test("password recovery is generic, PKCE-compatible and preserves invite setup", async () => {
@@ -40,6 +83,7 @@ test("password recovery is generic, PKCE-compatible and preserves invite setup",
   assert.match(login, /href="\/auth\/forgot-password"/);
   assert.match(forgotPage, /Аюулгүй байдлын үүднээс/);
   assert.match(forgotAction, /resetPasswordForEmail/);
+  assert.match(forgotAction, /authMessagePath/);
   assert.match(forgotAction, /Хүсэлтийг хүлээн авлаа/);
   assert.match(forgotAction, /error\.code/);
   assert.doesNotMatch(forgotAction, /error\.message|console\.(log|error|warn)\(.*email/);
@@ -49,9 +93,12 @@ test("password recovery is generic, PKCE-compatible and preserves invite setup",
   assert.match(confirmRoute, /type === "recovery"/);
   assert.match(confirmRoute, /Cache-Control", "no-store"/);
   assert.match(confirmRoute, /Referrer-Policy", "no-referrer"/);
+  assert.match(confirmRoute, /authMessagePath/);
   assert.match(setPasswordPage, /flow.*recovery/);
+  assert.match(setPasswordPage, /authMessagePath/);
   assert.match(setPasswordAction, /if \(recoveryFlow\) redirect\("\/"\)/);
   assert.match(setPasswordAction, /redirect\("\/onboarding"\)/);
+  assert.match(setPasswordAction, /authMessagePath/);
   assert.match(setPasswordAction, /is_anonymous/);
 });
 
@@ -65,6 +112,7 @@ test("public sign-up is removed and membership is server-authoritative", async (
   ]);
 
   assert.doesNotMatch(actions + login, /signUp|signup|Бүртгүүлэх/);
+  assert.match(actions, /authMessagePath/);
   assert.match(config, /enable_signup = false/);
   assert.match(currentUser, /team_members/);
   assert.doesNotMatch(currentUser, /metadata\.(role|app_role)|user_metadata.*\["role"\]/);
@@ -136,10 +184,11 @@ test("workspace data uses canonical lesson IDs and verified database sources", a
 });
 
 test("admin access is server-only, fail-closed, and audited", async () => {
-  const [adminServer, adminRoute, adminClient, adminMigration, membershipLifecycleMigration] = await Promise.all([
+  const [adminServer, adminRoute, adminClient, adminPage, adminMigration, membershipLifecycleMigration] = await Promise.all([
     readFile(new URL("../lib/supabase/admin.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/members/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/admin/admin-console.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/admin/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260830033918_admin_membership_operations.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260831135600_pending_assessment_membership.sql", import.meta.url), "utf8"),
   ]);
@@ -149,12 +198,17 @@ test("admin access is server-only, fail-closed, and audited", async () => {
   assert.doesNotMatch(adminServer + adminRoute + adminClient, /NEXT_PUBLIC_SUPABASE_SECRET_KEY/);
   assert.match(adminServer, /requireActiveAdmin/);
   assert.match(adminRoute, /inviteUserByEmail/);
+  assert.match(adminRoute, /authInviteRedirectUrl/);
+  assert.match(adminRoute, /inviteUserByEmail\(email, \{ redirectTo \}\)/);
   assert.match(adminRoute, /admin_register_invited_member/);
   assert.match(adminRoute, /admin_update_team_member/);
   assert.match(adminMigration, /values \(p_user_id, 'builder', 'pending'\)/);
   assert.match(adminMigration, /p_status not in \('pending', 'active', 'disabled'\)/);
   assert.match(adminMigration, /team_membership_audit_events/);
   assert.match(adminMigration, /An admin cannot demote or disable their own membership/);
+  assert.match(adminClient, /admin: "Супер админ"/);
+  assert.match(adminClient, /Last super admin: protected/);
+  assert.match(adminPage, /Супер админ · \{user\.email\}/);
   assert.match(adminMigration, /create or replace function public\.admin_update_team_member[\s\S]*security invoker/);
   assert.doesNotMatch(adminMigration, /create or replace function public\.admin_update_team_member[\s\S]{0,180}security definer/);
   assert.match(membershipLifecycleMigration, /alter column status set default 'pending'/);
@@ -162,6 +216,20 @@ test("admin access is server-only, fail-closed, and audited", async () => {
   assert.match(membershipLifecycleMigration, /values \(p_user_id, 'builder', 'pending'\)/);
   assert.match(membershipLifecycleMigration, /p_status not in \('pending', 'active', 'disabled'\)/);
   assert.match(membershipLifecycleMigration, /create or replace function private\.admin_update_team_member/);
+});
+
+test("privileged and privacy JSON routes enforce actual body size and object shape", async () => {
+  const [adminRoute, privacyRoute] = await Promise.all([
+    readFile(new URL("../app/api/admin/members/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/privacy/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  for (const route of [adminRoute, privacyRoute]) {
+    assert.match(route, /const rawBody = await request\.text\(\)/);
+    assert.match(route, /new TextEncoder\(\)\.encode\(rawBody\)\.byteLength/);
+    assert.match(route, /JSON\.parse\(rawBody\)/);
+    assert.match(route, /Array\.isArray\(body\)/);
+  }
 });
 
 test("personal Success Map and AI mentor are consent-gated, adaptive, private and server-finalized", async () => {

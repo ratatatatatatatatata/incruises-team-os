@@ -272,7 +272,14 @@ export async function POST(request: Request) {
         message,
         mode,
         action,
-        profile: modelContext.profile,
+        profile: {
+          ...modelContext.profile,
+          user_reflections: success.reflections.slice(0, 12).map((reflection) => ({
+            dimension: reflection.dimension,
+            question: reflection.question,
+            answer: reflection.answer.slice(0, 320),
+          })),
+        },
         guide: modelContext.guide,
         recentMessages,
         abortSignal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]),

@@ -14,8 +14,8 @@ test("ships the personal inSuccess home, Team OS workspace and Supabase login fl
   ]);
 
   assert.match(page, /MemberHome/);
-  assert.match(page, /redirect\("\/login"\)/);
-  assert.match(page, /redirect\("\/onboarding"\)/);
+  assert.match(page, /requireReadyMember/);
+  assert.match(page, /requireAssessmentConsent: true/);
   assert.match(workspace, /TeamOsApp/);
   assert.match(home, /15 \+ 100/);
   assert.match(home, /Хувийн AI туслах/);
@@ -44,7 +44,7 @@ test("ships Supabase RLS persistence, SSR session refresh and PWA wiring", async
   assert.match(layout, /PRODUCT_NAME/);
   assert.match(manifest, /display:\s*"standalone"/);
   assert.match(manifest, /PRODUCT_SHORT_NAME/);
-  assert.match(serviceWorker, /insuccess-shell-v3/);
+  assert.match(serviceWorker, /insuccess-shell-v4/);
   assert.doesNotMatch(serviceWorker, /\/og\.png/);
   assert.match(socialImage, /ImageResponse/);
   assert.match(socialImage, /BRAND_NAME/);

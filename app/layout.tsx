@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from "./brand";
+import { LegalFooter } from "./legal-footer";
 import { PwaRegister } from "./pwa-register";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="mn">
       <body>
         {children}
+        <LegalFooter />
         <PwaRegister />
       </body>
     </html>

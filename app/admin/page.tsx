@@ -3,19 +3,20 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/admin";
+import { loginPath } from "../auth/login-path.mjs";
 import { getCurrentTeamOsUser } from "../current-user";
 import { AdminConsole } from "./admin-console";
 import styles from "./admin.module.css";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Access admin" };
+export const metadata: Metadata = { title: "Супер админ" };
 
 function ConfigurationPanel({ children }: { children: React.ReactNode }) {
   return (
     <main className={styles.stateShell}>
       <section className={styles.statePanel}>
-        <p className={styles.eyebrow}>PRIVATE ADMIN ACCESS</p>
-        <h1>Access console</h1>
+        <p className={styles.eyebrow}>PRIVATE SUPER ADMIN ACCESS</p>
+        <h1>Супер админ</h1>
         {children}
         <Link className={styles.secondaryLink} href="/">
           Workspace руу буцах
@@ -35,13 +36,13 @@ export default async function AdminPage() {
   }
 
   const user = await getCurrentTeamOsUser();
-  if (!user) redirect("/login");
+  if (!user) redirect(loginPath("/admin"));
   if (user.access !== "active") redirect("/access-pending");
 
   if (user.role !== "admin") {
     return (
       <ConfigurationPanel>
-        <p className={styles.stateCopy}>Энэ хэсэгт зөвхөн идэвхтэй admin нэвтэрнэ.</p>
+        <p className={styles.stateCopy}>Энэ хэсэгт зөвхөн идэвхтэй супер админ нэвтэрнэ.</p>
         <p className={styles.identity}>{user.email}</p>
       </ConfigurationPanel>
     );
@@ -63,12 +64,18 @@ export default async function AdminPage() {
     <main className={styles.adminShell}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>PRIVATE ADMIN ACCESS</p>
+          <p className={styles.eyebrow}>PRIVATE SUPER ADMIN ACCESS</p>
           <h1>Гишүүн ба эрхийн удирдлага</h1>
           <p>Invite, role, activation өөрчлөлт бүр server дээр шалгагдаж, membership audit-д бүртгэгдэнэ.</p>
         </div>
         <div className={styles.headerActions}>
-          <span>{user.email}</span>
+          <span>Супер админ · {user.email}</span>
+          <Link className={styles.secondaryLink} href="/admin/academy">
+            Academy удирдлага
+          </Link>
+          <Link className={styles.secondaryLink} href="/admin/account-deletion">
+            Account deletion queue
+          </Link>
           <Link className={styles.secondaryLink} href="/">
             Workspace
           </Link>

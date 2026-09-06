@@ -1,5 +1,5 @@
-const CACHE_NAME = "insuccess-shell-v3";
-const STATIC_ASSETS = ["/favicon.svg"];
+const CACHE_NAME = "insuccess-shell-v4";
+const STATIC_ASSETS = ["/favicon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)));

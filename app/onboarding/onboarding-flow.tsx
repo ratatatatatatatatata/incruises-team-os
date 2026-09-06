@@ -65,6 +65,8 @@ type Snapshot = {
   baselineTotal: 15;
   tailoredAnswered: number;
   tailoredTotal: 100;
+  personalizationSource: "ai_gateway" | "adaptive_fallback" | null;
+  personalizationModel: string | null;
   question: Question | null;
 };
 
@@ -156,6 +158,10 @@ function parseSnapshot(value: unknown): Snapshot {
     typeof value.tailoredAnswered !== "number" ||
     value.baselineTotal !== BASELINE_TOTAL ||
     value.tailoredTotal !== TAILORED_TOTAL ||
+    (value.personalizationSource !== null &&
+      value.personalizationSource !== "ai_gateway" &&
+      value.personalizationSource !== "adaptive_fallback") ||
+    (value.personalizationModel !== null && typeof value.personalizationModel !== "string") ||
     (value.question !== null && !isQuestion(value.question))
   ) {
     throw new OnboardingRequestError(
@@ -267,7 +273,8 @@ function progressLabel(snapshot: Snapshot): string {
     return `Эхний зураглал: ${snapshot.baselineAnswered} / ${BASELINE_TOTAL} · Нийт ${snapshot.baselineAnswered} / 115`;
   }
   if (snapshot.stage === "tailored" || snapshot.stage === "ready_to_complete") {
-    return `Танд зориулсан асуулт: ${snapshot.tailoredAnswered} / ${TAILORED_TOTAL} · Нийт ${BASELINE_TOTAL + snapshot.tailoredAnswered} / 115`;
+    const source = snapshot.personalizationSource === "ai_gateway" ? "AI-аар танд зориулсан" : "Танд тохируулсан";
+    return `${source} асуулт: ${snapshot.tailoredAnswered} / ${TAILORED_TOTAL} · Нийт ${BASELINE_TOTAL + snapshot.tailoredAnswered} / 115`;
   }
   if (snapshot.stage === "completed") return "Амжилтын зураглал бүрэн дууссан";
   return "Эхний 15 хариултыг нэгтгэж байна";
@@ -973,8 +980,10 @@ export function OnboardingFlow({
       };
     }
 
+    const beginsAnalysis = question.phase === "baseline" && question.position === BASELINE_TOTAL;
     setSubmitting(true);
     setRequestError(null);
+    if (beginsAnalysis) setAnalysisPreview(true);
 
     try {
       const response = await fetch("/api/onboarding/answers", {
@@ -995,15 +1004,6 @@ export function OnboardingFlow({
       });
       const nextSnapshot = await readResponse(response);
       pendingAnswerRef.current = null;
-      if (
-        question.phase === "baseline" &&
-        question.position === BASELINE_TOTAL &&
-        nextSnapshot.stage === "tailored"
-      ) {
-        setAnalysisPreview(true);
-        await new Promise((resolve) => window.setTimeout(resolve, 1800));
-        setAnalysisPreview(false);
-      }
       setSnapshot(nextSnapshot);
       if (nextSnapshot.stage === "ready_to_complete") {
         await completeOnboarding(nextSnapshot.sessionId);
@@ -1013,6 +1013,7 @@ export function OnboardingFlow({
         error instanceof Error ? error.message : "Хариултыг хадгалж чадсангүй.",
       );
     } finally {
+      if (beginsAnalysis) setAnalysisPreview(false);
       setSubmitting(false);
     }
   }

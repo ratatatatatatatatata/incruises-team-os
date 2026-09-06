@@ -2,6 +2,7 @@ import "server-only";
 
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { prepareAiTailoredQuestions } from "./generation";
 import {
   ASSESSMENT_VERSION,
   BASELINE_TOTAL,
@@ -19,9 +20,10 @@ import {
 
 type SessionClient = Awaited<ReturnType<typeof createClient>>;
 
-type AssessmentContext = {
+export type AssessmentContext = {
   supabase: SessionClient;
   userId: string;
+  verified: true;
 };
 
 type StateRow = {
@@ -31,6 +33,7 @@ type StateRow = {
   assessment_version: string;
   baseline_answered: number;
   tailored_answered: number;
+  active_session: unknown;
 };
 
 type QuestionRow = {
@@ -133,7 +136,7 @@ export async function requireAssessmentContext(): Promise<AssessmentContext> {
     throw new AssessmentRequestError(401, "sign_in_required", "Нэвтэрч орно уу.");
   }
 
-  return { supabase, userId };
+  return { supabase, userId, verified: true };
 }
 
 export async function requireAssessmentConsent(context: AssessmentContext) {
@@ -198,7 +201,7 @@ function questionFromRow(row: QuestionRow): AssessmentQuestion {
 async function readState(context: AssessmentContext): Promise<StateRow | null> {
   const { data, error } = await context.supabase
     .from("member_onboarding_state")
-    .select("user_id,active_session_id,status,assessment_version,baseline_answered,tailored_answered")
+    .select("user_id,active_session_id,status,assessment_version,baseline_answered,tailored_answered,active_session:assessment_sessions!member_onboarding_state_active_session_owner_fkey(adaptation_context)")
     .eq("user_id", context.userId)
     .maybeSingle();
   if (error) throw error;
@@ -215,10 +218,29 @@ async function beginSession(context: AssessmentContext): Promise<string> {
 }
 
 async function prepareTailoredQuestions(context: AssessmentContext, sessionId: string) {
+  const preparation = await prepareAiTailoredQuestions(context, sessionId);
+  if (preparation === "complete" || preparation === "waiting") return;
+
   const { error } = await context.supabase.rpc("snapshot_onboarding_tailored_questions", {
     p_session_id: sessionId,
   });
   if (error) throw error;
+}
+
+function personalizationMetadata(state: StateRow) {
+  const joinedSession = asRecord(state.active_session);
+  const context = asRecord(joinedSession.adaptation_context);
+  const algorithmVersion = typeof context.algorithmVersion === "string" ? context.algorithmVersion : "";
+  return {
+    personalizationSource: algorithmVersion === "ai-tailored-v2"
+      ? "ai_gateway" as const
+      : algorithmVersion.startsWith("adaptive-branch-")
+        ? "adaptive_fallback" as const
+        : null,
+    personalizationModel: algorithmVersion === "ai-tailored-v2" && typeof context.model === "string"
+      ? context.model
+      : null,
+  };
 }
 
 async function currentQuestion(
@@ -291,6 +313,7 @@ export async function loadAssessmentSnapshot(
     baselineTotal: BASELINE_TOTAL,
     tailoredAnswered: state.tailored_answered,
     tailoredTotal: TAILORED_TOTAL,
+    ...personalizationMetadata(state),
     question,
   };
 }

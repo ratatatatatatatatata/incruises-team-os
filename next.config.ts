@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const connectSources = ["'self'"];
+const connectSources = ["'self'", "https://*.mux.com"];
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 if (supabaseUrl) {
@@ -16,9 +16,12 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://image.mux.com",
   "font-src 'self' data:",
   `connect-src ${connectSources.join(" ")}`,
+  "media-src 'self' blob: https://*.mux.com",
+  "worker-src 'self' blob:",
+  "frame-src 'self' https://player.mux.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

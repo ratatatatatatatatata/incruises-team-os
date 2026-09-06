@@ -47,7 +47,17 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   if (!contentType.includes("application/json") || contentLength > 4_096) {
     throw new PrivacyRequestError(400, "invalid_request", "JSON хүсэлт шаардлагатай.");
   }
-  const body = (await request.json().catch(() => null)) as unknown;
+  const rawBody = await request.text();
+  if (new TextEncoder().encode(rawBody).byteLength > 4_096) {
+    throw new PrivacyRequestError(400, "invalid_request", "JSON хүсэлт шаардлагатай.");
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    body = null;
+  }
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new PrivacyRequestError(400, "invalid_json", "Хүсэлтийн мэдээлэл буруу байна.");
   }

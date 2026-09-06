@@ -248,6 +248,9 @@ a { color: inherit; text-decoration: none; }
 .signin-panel h1 { margin: 0; font-size: clamp(50px,10vw,80px); line-height: .9; letter-spacing: -.07em; }
 .signin-copy { margin: 28px 0; color: #b5c8db; max-width: 430px; line-height: 1.7; }
 .signin-note { color: #a7bbcf; font-size: 14px; line-height: 1.55; margin-top: 18px; }
+.signin-legal { margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.12); display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.signin-legal a { min-height: 44px; display: inline-flex; align-items: center; color: #b9d8ff; font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+.signin-legal a:hover { color: white; }
 .signin-form { display: grid; gap: 14px; }
 .signin-form label { display: grid; gap: 7px; color: #c6d6e6; font-size: 14px; font-weight: 800; }
 .signin-form input { min-height: 48px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; background: rgba(255,255,255,.06); color: white; font-size: 16px; outline: none; }
@@ -260,6 +263,12 @@ a { color: inherit; text-decoration: none; }
 .auth-message { padding: 11px 13px; border-left: 3px solid; font-size: 14px; line-height: 1.55; }
 .auth-message.error { border-color: var(--red); background: rgba(223,91,91,.12); color: #ffc2c2; }
 .auth-message.success { border-color: var(--green); background: rgba(26,169,122,.12); color: #a9f0d5; }
+
+.legal-footer { min-height: 76px; padding: 16px clamp(18px,4vw,54px); border-top: 1px solid #dfe6ef; background: #fff; color: #657185; display: flex; align-items: center; justify-content: space-between; gap: 18px; font-size: 12px; }
+.legal-footer > span { font-weight: 850; color: #31445d; }
+.legal-footer nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px 18px; }
+.legal-footer a { min-height: 44px; display: inline-flex; align-items: center; text-decoration: underline; text-underline-offset: 3px; }
+.legal-footer a:hover { color: #155db8; }
 
 @media (max-width: 1100px) {
   .app-shell { grid-template-columns: 210px minmax(0,1fr); }
@@ -304,6 +313,8 @@ a { color: inherit; text-decoration: none; }
   .mobile-nav button { border: 0; background: transparent; color: #8198af; font-size: 9px; font-weight: 750; display: grid; place-items: center; gap: 2px; cursor: pointer; }
   .mobile-nav button span { font-size: 18px; line-height: 1; }
   .mobile-nav button.active { color: var(--cyan-400); }
+  .legal-footer { padding-bottom: calc(16px + env(safe-area-inset-bottom)); align-items: flex-start; flex-direction: column; }
+  .legal-footer nav { justify-content: flex-start; }
 }
 
 @media (max-width: 480px) {

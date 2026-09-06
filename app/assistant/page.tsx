@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { getCurrentTeamOsUser } from "../current-user";
+import { requireReadyMember } from "../member-access";
 import { AssistantClient } from "./assistant-client";
 import { SectionShell } from "../my-guide/section-shell";
 
@@ -21,13 +21,15 @@ export default async function AssistantPage({
 }: {
   searchParams: Promise<{ conversation?: string | string[] }>;
 }) {
-  const [user, params] = await Promise.all([getCurrentTeamOsUser(), searchParams]);
-
-  if (!user) redirect("/login");
-  if (user.onboarding?.status !== "completed") redirect("/onboarding");
-  if (user.access !== "active" || !user.role) redirect("/access-pending");
-  if (!user.assessmentConsent) redirect("/privacy");
+  const [currentUser, params] = await Promise.all([getCurrentTeamOsUser(), searchParams]);
   const conversationId = safeConversationId(params.conversation);
+  const returnTo = conversationId
+    ? `/assistant?conversation=${encodeURIComponent(conversationId)}`
+    : "/assistant";
+  const user = requireReadyMember(currentUser, {
+    returnTo,
+    requireAssessmentConsent: true,
+  });
 
   return (
     <SectionShell

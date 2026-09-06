@@ -48,7 +48,7 @@ const roleLabels: Record<TeamRole, string> = {
   builder: "Builder",
   coach: "Coach",
   director: "Director",
-  admin: "Admin",
+  admin: "Супер админ",
 };
 
 const statusLabels: Record<MembershipStatus, string> = {
@@ -219,7 +219,7 @@ function MemberRow({
           >
             {saving ? "Хадгалж байна…" : "Өөрчлөлт хадгалах"}
           </button>
-          {isSelf ? <p className={styles.controlHint}>Өөрийн admin access-ийг энэ console-оос өөрчлөхгүй.</p> : null}
+          {isSelf ? <p className={styles.controlHint}>Өөрийн супер админ эрхийг энэ console-оос өөрчлөхгүй.</p> : null}
         </div>
       ) : (
         <div className={styles.memberControls}>
@@ -336,7 +336,7 @@ export function AdminConsole() {
       <section className={styles.guardrails} aria-label="Admin safety rules">
         <span>New access: onboarding only</span>
         <span>Self-lockout: blocked</span>
-        <span>Last admin: protected</span>
+        <span>Last super admin: protected</span>
         <span>Changes: audited RPC</span>
       </section>
 

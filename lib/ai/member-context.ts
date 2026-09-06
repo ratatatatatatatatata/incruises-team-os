@@ -27,6 +27,7 @@ export type SuccessContext = {
   profile: Record<string, unknown>;
   guide: Record<string, unknown>;
   onboarding: Record<string, unknown>;
+  reflections: Array<{ dimension: string; question: string; answer: string }>;
 };
 
 export async function requirePersonalizationContext(): Promise<PersonalizationContext> {
@@ -129,7 +130,7 @@ export async function loadSuccessContext(context: PersonalizationContext): Promi
       .maybeSingle(),
     context.supabase
       .from("member_onboarding_state")
-      .select("status,assessment_version,baseline_answered,tailored_answered,completed_at")
+      .select("status,assessment_version,baseline_answered,tailored_answered,completed_at,active_session_id")
       .eq("user_id", context.userId)
       .maybeSingle(),
   ]);
@@ -140,10 +141,41 @@ export async function loadSuccessContext(context: PersonalizationContext): Promi
     throw new PersonalizationAccessError(409, "profile_not_ready", "Success Profile бэлэн болоогүй байна.");
   }
 
+  const onboarding = onboardingResult.data as Record<string, unknown>;
+  const sessionId = typeof onboarding.active_session_id === "string" ? onboarding.active_session_id : null;
+  let reflections: SuccessContext["reflections"] = [];
+  if (sessionId) {
+    const { data, error } = await context.supabase
+      .from("assessment_answers")
+      .select("answer_value,assessment_questions!inner(prompt,dimension,response_type,phase)")
+      .eq("session_id", sessionId)
+      .eq("answer_kind", "answer")
+      .eq("assessment_questions.phase", "tailored")
+      .eq("assessment_questions.response_type", "short_text")
+      .order("created_at", { ascending: true })
+      .limit(20);
+    if (error) throw error;
+    reflections = (data ?? []).flatMap((item) => {
+      const joined = item.assessment_questions;
+      const question = Array.isArray(joined) ? joined[0] : joined;
+      if (!question || typeof question !== "object" || Array.isArray(question)) return [];
+      const row = question as Record<string, unknown>;
+      if (typeof item.answer_value !== "string" || typeof row.prompt !== "string" || typeof row.dimension !== "string") {
+        return [];
+      }
+      return [{
+        dimension: row.dimension,
+        question: row.prompt.slice(0, 360),
+        answer: item.answer_value.slice(0, 600),
+      }];
+    });
+  }
+
   return {
     profile: profileResult.data as Record<string, unknown>,
     guide: guideResult.data as Record<string, unknown>,
-    onboarding: onboardingResult.data as Record<string, unknown>,
+    onboarding,
+    reflections,
   };
 }
 

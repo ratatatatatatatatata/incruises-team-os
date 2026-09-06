@@ -52,6 +52,8 @@ export type AssessmentSnapshot = {
   baselineTotal: typeof BASELINE_TOTAL;
   tailoredAnswered: number;
   tailoredTotal: typeof TAILORED_TOTAL;
+  personalizationSource: "ai_gateway" | "adaptive_fallback" | null;
+  personalizationModel: string | null;
   question: AssessmentQuestion | null;
 };
 

@@ -176,6 +176,14 @@ export function PrivacyClient({ userName }: { userName: string }) {
             </button>
           </section>
 
+          <section className={styles.deletionCard}>
+            <div>
+              <strong>Account ба өгөгдөл устгах хүсэлт</strong>
+              <p>Account deletion хүсэлтээ app дотроос эхлүүлж, төлөвийг харах эсвэл боловсруулалт эхлэхээс өмнө цуцална.</p>
+            </div>
+            <Link href="/account-deletion#manage">Хүсэлтээ удирдах →</Link>
+          </section>
+
           {notice && <p className={styles.success} role="status">{notice}</p>}
           {error && <p className={styles.error} role="alert">{error}</p>}
           <button className={styles.save} type="submit" disabled={saving || !preferences?.assessmentConsent}>{saving ? "Хадгалж байна…" : "Сонголтоо хадгалах"}</button>

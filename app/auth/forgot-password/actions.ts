@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { passwordRecoveryRedirectUrl } from "../recovery-url.mjs";
+import { authMessagePath } from "../redirects.mjs";
 
 function forgotPasswordRedirect(kind: "error" | "message", message: string): never {
-  redirect(`/auth/forgot-password?${kind}=${encodeURIComponent(message)}`);
+  redirect(authMessagePath("/auth/forgot-password", kind, message));
 }
 
 export async function requestPasswordReset(formData: FormData) {
