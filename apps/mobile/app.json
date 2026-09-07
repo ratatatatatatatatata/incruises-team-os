@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "inSuccess Team OS",
+    "slug": "insuccess-team-os",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "insuccessteamos",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.insuccess.teamos",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.insuccess.teamos",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
