@@ -124,6 +124,16 @@ export type WorkspacePayload = {
     canRecordCorporateApproval: boolean;
   };
   progress: Array<{ lessonId: string; status: string; score: number | null }>;
+  lessons: Array<{
+    id: string;
+    levelId: string;
+    title: string;
+    type: string;
+    minutes: number;
+    content: string;
+    sortOrder: number;
+    isPublished: boolean;
+  }>;
   drafts: Array<{
     id: number;
     title: string;

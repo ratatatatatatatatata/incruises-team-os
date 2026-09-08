@@ -9,6 +9,7 @@ type Section = "overview" | "academy" | "content" | "members" | "vault" | "users
 const emptyWorkspace: WorkspacePayload = {
   viewer: { role: "user", canReview: false, canRecordCorporateApproval: false },
   progress: [],
+  lessons: [],
   drafts: [],
   memberTasks: [],
   users: [],
@@ -46,6 +47,8 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [lessonForm, setLessonForm] = useState({ title: "", lessonType: "Хичээл", minutes: "10", content: "" });
   const [approvalReferences, setApprovalReferences] = useState<Record<number, string>>({});
   const [draftForm, setDraftForm] = useState<{
     title: string;
@@ -110,12 +113,17 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
     () => new Set(workspace.progress.filter((item) => item.status === "completed").map((item) => item.lessonId)),
     [workspace.progress],
   );
-  const totalLessons = learningLevels.reduce((sum, level) => sum + level.lessons.length, 0);
-  const progressPercent = Math.round((completedLessons.size / totalLessons) * 100);
+  const publishedLessons = workspace.lessons.filter((lesson) => lesson.isPublished);
+  const totalLessons = publishedLessons.length;
+  const completedPublishedLessons = publishedLessons.filter((lesson) => completedLessons.has(lesson.id)).length;
+  const progressPercent = totalLessons === 0 ? 0 : Math.round((completedPublishedLessons / totalLessons) * 100);
   const pendingMemberTasks = workspace.memberTasks.filter((task) => task.status !== "complete");
   const activeDrafts = workspace.drafts.filter((draft) => draft.status !== "archived");
   const selected = learningLevels[selectedLevel];
-  const selectedDone = selected.lessons.filter((lesson) => completedLessons.has(lesson.id)).length;
+  const selectedLessons = workspace.lessons.filter((lesson) => lesson.levelId === selected.id);
+  const selectedDone = selectedLessons.filter((lesson) => lesson.isPublished && completedLessons.has(lesson.id)).length;
+  const selectedPublishedCount = selectedLessons.filter((lesson) => lesson.isPublished).length;
+  const selectedLesson = workspace.lessons.find((lesson) => lesson.id === selectedLessonId) ?? null;
 
   async function submitDraft(event: FormEvent) {
     event.preventDefault();
@@ -129,6 +137,15 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
     if (!memberForm.memberName.trim() || !memberForm.nextAction.trim()) return;
     await runAction({ action: "add_member_task", ...memberForm }, "Member Success task нэмэгдлээ.");
     setMemberForm({ memberName: "", milestone: "72 цаг", nextAction: "", dueLabel: "Өнөөдөр", risk: "normal" });
+  }
+
+  async function submitLesson(event: FormEvent) {
+    event.preventDefault();
+    await runAction(
+      { action: "create_lesson", levelId: selected.id, ...lessonForm, minutes: Number(lessonForm.minutes) },
+      "Шинэ хичээл нийтлэгдлээ.",
+    );
+    setLessonForm({ title: "", lessonType: "Хичээл", minutes: "10", content: "" });
   }
 
   return (
@@ -170,7 +187,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
           {section === "overview" && (
             <Overview
               progressPercent={progressPercent}
-              completed={completedLessons.size}
+              completed={completedPublishedLessons}
               total={totalLessons}
               pendingTasks={pendingMemberTasks}
               drafts={activeDrafts}
@@ -182,7 +199,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
           {section === "academy" && (
             <section className="section-stack">
               <div className="section-intro">
-                <div><p className="eyebrow blue">PILOT LEARNING TRACKER</p><h2>Сургалтын ахицыг нэг мөр тэмдэглэнэ.</h2><p>Одоогийн release нь completion tracking. Quiz, role-play rubric, teach-back gate дараагийн баталгаажуулсан release-д орно.</p></div>
+                <div><p className="eyebrow blue">LEARNING CENTER</p><h2>Хичээлээ нээж үзээд, ахицаа хадгална.</h2><p>Хичээл бүрийн агуулгыг уншиж дуусаад “Дуусгасан” гэж тэмдэглэнэ. Ахиц таны бүртгэл дээр хадгалагдана.</p></div>
                 <div className="summary-pill"><strong>{progressPercent}%</strong><span>нийт зам</span></div>
               </div>
               <div className="level-tabs" role="tablist" aria-label="Сургалтын түвшин">
@@ -194,32 +211,37 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
               </div>
               <div className="academy-layout">
                 <article className="panel lesson-panel">
-                  <div className="panel-heading"><div><span className="tag">{selected.level}</span><h3>{selected.title}</h3><p>{selected.description}</p></div><div className="lesson-count">{selectedDone}/{selected.lessons.length}<small>дууссан</small></div></div>
-                  <div className="progress-track"><span style={{ width: `${(selectedDone / selected.lessons.length) * 100}%` }} /></div>
+                  <div className="panel-heading"><div><span className="tag">{selected.level}</span><h3>{selected.title}</h3><p>{selected.description}</p></div><div className="lesson-count">{selectedDone}/{selectedPublishedCount}<small>дууссан</small></div></div>
+                  <div className="progress-track"><span style={{ width: `${selectedPublishedCount === 0 ? 0 : (selectedDone / selectedPublishedCount) * 100}%` }} /></div>
                   <div className="lesson-list">
-                    {selected.lessons.map((lesson, index) => {
+                    {selectedLessons.length === 0 && <EmptyState title="Хичээл хараахан алга" copy="Админ энэ түвшинд шинэ хичээл нэмнэ." />}
+                    {selectedLessons.map((lesson, index) => {
                       const done = completedLessons.has(lesson.id);
                       return (
                         <button
                           key={lesson.id}
                           className={`lesson-row ${done ? "done" : ""}`}
-                          onClick={() => void runAction({ action: "toggle_lesson", lessonId: lesson.id }, done ? "Хичээлийг нээлттэй төлөвт буцаалаа." : "Хичээл дууссанд бүртгэгдлээ.")}
-                          disabled={saving}
+                          onClick={() => setSelectedLessonId(lesson.id)}
                         >
                           <span className="lesson-check">{done ? "✓" : String(index + 1).padStart(2, "0")}</span>
                           <span className="lesson-copy"><strong>{lesson.title}</strong><small>{lesson.type} · {lesson.minutes} мин</small></span>
-                          <span className="row-action">{done ? "Дууссан" : "Нээх"}</span>
+                          <span className="row-action">{!lesson.isPublished ? "Идэвхгүй" : done ? "Дахин үзэх" : "Нээх →"}</span>
                         </button>
                       );
                     })}
                   </div>
                 </article>
-                <aside className="panel certification-panel">
-                  <p className="eyebrow blue">NEXT RELEASE</p>
-                  <h3>Gate хийхээр төлөвлөсөн</h3>
-                  <ul className="check-list"><li><span>80%</span> Quiz-ийн доод оноо</li><li><span>A</span> Role-play rubric</li><li><span>1×</span> Teach-back review</li></ul>
-                  <div className="locked-note"><strong>Одоогоор идэвхгүй</strong><p>Энэ самбар completion-ийг л бүртгэнэ; certification эсвэл дараагийн role-г автоматаар олгохгүй.</p></div>
-                </aside>
+                {user.role === "admin" ? (
+                  <form className="panel form-panel" onSubmit={submitLesson}>
+                    <p className="eyebrow blue">ADMIN · NEW LESSON</p><h3>{selected.level}-д хичээл нэмэх</h3>
+                    <label>Гарчиг<input value={lessonForm.title} onChange={(event) => setLessonForm({ ...lessonForm, title: event.target.value })} maxLength={140} required /></label>
+                    <div className="field-grid"><label>Төрөл<select value={lessonForm.lessonType} onChange={(event) => setLessonForm({ ...lessonForm, lessonType: event.target.value })}><option>Хичээл</option><option>Workshop</option><option>Role-play</option><option>Quiz</option><option>Assessment</option><option>Playbook</option></select></label><label>Минут<input type="number" min="1" max="480" value={lessonForm.minutes} onChange={(event) => setLessonForm({ ...lessonForm, minutes: event.target.value })} required /></label></div>
+                    <label>Хичээлийн агуулга<textarea className="lesson-content-input" value={lessonForm.content} onChange={(event) => setLessonForm({ ...lessonForm, content: event.target.value })} maxLength={12000} placeholder="Суралцах зорилго, тайлбар, алхам, даалгавар..." required /></label>
+                    <button className="primary-button" type="submit" disabled={saving || !lessonForm.title.trim() || !lessonForm.content.trim()}>Хичээл нэмэх</button>
+                  </form>
+                ) : (
+                  <aside className="panel certification-panel"><p className="eyebrow blue">СУРАЛЦАХ ДАРААЛАЛ</p><h3>Нээ → Суралц → Дуусга</h3><ul className="check-list"><li><span>01</span> Хичээлээ нээж унших</li><li><span>02</span> Дадлагаа хийх</li><li><span>✓</span> Ахицдаа тэмдэглэх</li></ul><div className="locked-note"><strong>Таны ахиц хадгалагдана</strong><p>Дараа нэвтрэхэд дууссан хичээлүүд хэвээр харагдана.</p></div></aside>
+                )}
               </div>
             </section>
           )}
@@ -340,9 +362,68 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
         </div>
       </main>
 
+      {selectedLesson && (
+        <LessonDialog
+          lesson={selectedLesson}
+          done={completedLessons.has(selectedLesson.id)}
+          isAdmin={user.role === "admin"}
+          saving={saving}
+          onClose={() => setSelectedLessonId(null)}
+          onToggle={() => runAction({ action: "toggle_lesson", lessonId: selectedLesson.id }, completedLessons.has(selectedLesson.id) ? "Дууссан тэмдэглэгээг цуцаллаа." : "Хичээл дууссанд бүртгэгдлээ.")}
+          onSave={(changes) => runAction({ action: "update_lesson", lessonId: selectedLesson.id, ...changes }, "Хичээлийн мэдээлэл шинэчлэгдлээ.")}
+        />
+      )}
+
       <nav className="mobile-nav" aria-label="Гар утасны цэс">
         {visibleNavItems.map((item) => <button key={item.id} className={section === item.id ? "active" : ""} onClick={() => setSection(item.id)}><span>{item.symbol}</span>{item.short}</button>)}
       </nav>
+    </div>
+  );
+}
+
+function LessonDialog({ lesson, done, isAdmin, saving, onClose, onToggle, onSave }: {
+  lesson: WorkspacePayload["lessons"][number];
+  done: boolean;
+  isAdmin: boolean;
+  saving: boolean;
+  onClose: () => void;
+  onToggle: () => Promise<void>;
+  onSave: (changes: { title: string; lessonType: string; minutes: number; content: string; isPublished: boolean }) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ title: lesson.title, lessonType: lesson.type, minutes: String(lesson.minutes), content: lesson.content, isPublished: lesson.isPublished });
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    await onSave({ ...form, minutes: Number(form.minutes) });
+    setEditing(false);
+  }
+
+  return (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <article className="lesson-dialog" role="dialog" aria-modal="true" aria-labelledby="lesson-dialog-title">
+        <header className="lesson-dialog-header">
+          <div><span className="tag">{lesson.type} · {lesson.minutes} мин</span><h2 id="lesson-dialog-title">{lesson.title}</h2></div>
+          <button className="dialog-close" onClick={onClose} aria-label="Хичээл хаах">×</button>
+        </header>
+        {editing ? (
+          <form className="lesson-editor form-panel" onSubmit={save}>
+            <label>Гарчиг<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} maxLength={140} required /></label>
+            <div className="field-grid"><label>Төрөл<input value={form.lessonType} onChange={(event) => setForm({ ...form, lessonType: event.target.value })} maxLength={40} required /></label><label>Минут<input type="number" min="1" max="480" value={form.minutes} onChange={(event) => setForm({ ...form, minutes: event.target.value })} required /></label></div>
+            <label>Агуулга<textarea className="lesson-content-input" value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} maxLength={12000} required /></label>
+            <label className="publish-toggle"><input type="checkbox" checked={form.isPublished} onChange={(event) => setForm({ ...form, isPublished: event.target.checked })} /> Хэрэглэгчдэд нийтлэх</label>
+            <div className="dialog-actions"><button type="button" className="secondary-button" onClick={() => setEditing(false)}>Болих</button><button className="primary-button" type="submit" disabled={saving}>Өөрчлөлт хадгалах</button></div>
+          </form>
+        ) : (
+          <>
+            <div className="lesson-body">{lesson.content.split("\n").map((paragraph, index) => paragraph ? <p key={index}>{paragraph}</p> : <br key={index} />)}</div>
+            <footer className="dialog-actions">
+              {isAdmin && <button className="secondary-button" onClick={() => setEditing(true)}>Засах</button>}
+              <button className={done ? "secondary-button" : "primary-button"} onClick={() => void onToggle()} disabled={saving || !lesson.isPublished}>{done ? "Дууссан тэмдэглэгээ цуцлах" : "✓ Хичээлийг дуусгасан"}</button>
+            </footer>
+          </>
+        )}
+      </article>
     </div>
   );
 }

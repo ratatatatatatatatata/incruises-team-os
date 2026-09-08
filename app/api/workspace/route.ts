@@ -1,10 +1,10 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
-import { learningLevels, officialSources } from "../../team-os-data";
+import { officialSources } from "../../team-os-data";
 
 const allowedSourceIds = new Set<string>(officialSources.map((source) => source.id));
-const allowedLessonIds = new Set<string>(learningLevels.flatMap((level) => level.lessons.map((lesson) => lesson.id)));
 const allowedChannels = new Set(["Facebook", "Instagram", "Short video", "FAQ", "Message"]);
+const allowedLevelIds = new Set(["l0", "l1", "l2", "l3", "l5"]);
 
 type TeamRole = "user" | "builder" | "coach" | "director" | "admin";
 
@@ -15,6 +15,16 @@ type AuthContext = {
 };
 
 type LessonRow = { lesson_id: string; status: string; score: number | null };
+type AcademyLessonRow = {
+  id: string;
+  level_id: string;
+  title: string;
+  lesson_type: string;
+  minutes: number;
+  content: string;
+  sort_order: number;
+  is_published: boolean;
+};
 type DraftRow = {
   id: number;
   owner_id: string;
@@ -90,8 +100,14 @@ function serverError(error: unknown) {
 export async function GET() {
   try {
     const { supabase, userId, role } = await authorizedContext();
-    const [progressResult, draftsResult, tasksResult] = await Promise.all([
+    const [progressResult, lessonsResult, draftsResult, tasksResult] = await Promise.all([
       supabase.from("lesson_progress").select("lesson_id,status,score").order("completed_at", { ascending: false }),
+      supabase
+        .from("academy_lessons")
+        .select("id,level_id,title,lesson_type,minutes,content,sort_order,is_published")
+        .order("level_id")
+        .order("sort_order")
+        .order("created_at"),
       supabase
         .from("content_drafts")
         .select("id,owner_id,title,channel,source_id,status,excerpt,created_at,review_note,corporate_approval_ref,corporate_approved_at")
@@ -104,13 +120,23 @@ export async function GET() {
         .limit(40),
     ]);
 
-    const firstError = progressResult.error ?? draftsResult.error ?? tasksResult.error;
+    const firstError = progressResult.error ?? lessonsResult.error ?? draftsResult.error ?? tasksResult.error;
     if (firstError) throw firstError;
 
     const progress = ((progressResult.data ?? []) as LessonRow[]).map((row) => ({
       lessonId: row.lesson_id,
       status: row.status,
       score: row.score,
+    }));
+    const lessons = ((lessonsResult.data ?? []) as AcademyLessonRow[]).map((row) => ({
+      id: row.id,
+      levelId: row.level_id,
+      title: row.title,
+      type: row.lesson_type,
+      minutes: row.minutes,
+      content: row.content,
+      sortOrder: row.sort_order,
+      isPublished: row.is_published,
     }));
     const drafts = ((draftsResult.data ?? []) as DraftRow[]).map((row) => ({
       id: row.id,
@@ -157,6 +183,7 @@ export async function GET() {
         canRecordCorporateApproval: role === "admin",
       },
       progress,
+      lessons,
       drafts,
       memberTasks,
       users,
@@ -196,7 +223,13 @@ export async function POST(request: Request) {
 
     if (action === "toggle_lesson") {
       const lessonId = String(body.lessonId ?? "");
-      if (!allowedLessonIds.has(lessonId)) return Response.json({ error: "Unknown lesson" }, { status: 400 });
+      const { data: lesson, error: lessonError } = await supabase
+        .from("academy_lessons")
+        .select("id")
+        .eq("id", lessonId)
+        .maybeSingle();
+      if (lessonError) throw lessonError;
+      if (!lesson) return Response.json({ error: "Хичээл олдсонгүй." }, { status: 404 });
 
       const { data: existing, error: selectError } = await supabase
         .from("lesson_progress")
@@ -226,6 +259,66 @@ export async function POST(request: Request) {
       });
       if (error) throw error;
       return Response.json({ completed: true }, { status: 201 });
+    }
+
+    if (action === "create_lesson") {
+      if (role !== "admin") throw new WorkspaceError(403, "Admin role required");
+      const levelId = String(body.levelId ?? "");
+      const title = String(body.title ?? "").trim().slice(0, 140);
+      const lessonType = String(body.lessonType ?? "Хичээл").trim().slice(0, 40);
+      const content = String(body.content ?? "").trim().slice(0, 12000);
+      const minutes = Number(body.minutes);
+      if (!allowedLevelIds.has(levelId) || !title || !lessonType || !content || !Number.isInteger(minutes) || minutes < 1 || minutes > 480) {
+        return Response.json({ error: "Хичээлийн мэдээллийг бүрэн, зөв оруулна уу." }, { status: 400 });
+      }
+      const id = `${levelId}-${crypto.randomUUID().slice(0, 8)}`;
+      const { data: latest, error: latestError } = await supabase
+        .from("academy_lessons")
+        .select("sort_order")
+        .eq("level_id", levelId)
+        .order("sort_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latestError) throw latestError;
+      const { data: created, error } = await supabase
+        .from("academy_lessons")
+        .insert({
+          id,
+          level_id: levelId,
+          title,
+          lesson_type: lessonType,
+          minutes,
+          content,
+          sort_order: Number(latest?.sort_order ?? 0) + 10,
+          is_published: true,
+          created_by: userId,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return Response.json({ lesson: created }, { status: 201 });
+    }
+
+    if (action === "update_lesson") {
+      if (role !== "admin") throw new WorkspaceError(403, "Admin role required");
+      const lessonId = String(body.lessonId ?? "");
+      const title = String(body.title ?? "").trim().slice(0, 140);
+      const lessonType = String(body.lessonType ?? "").trim().slice(0, 40);
+      const content = String(body.content ?? "").trim().slice(0, 12000);
+      const minutes = Number(body.minutes);
+      const isPublished = body.isPublished === true;
+      if (!lessonId || !title || !lessonType || !content || !Number.isInteger(minutes) || minutes < 1 || minutes > 480) {
+        return Response.json({ error: "Хичээлийн мэдээллийг бүрэн, зөв оруулна уу." }, { status: 400 });
+      }
+      const { data: updated, error } = await supabase
+        .from("academy_lessons")
+        .update({ title, lesson_type: lessonType, minutes, content, is_published: isPublished, updated_at: new Date().toISOString() })
+        .eq("id", lessonId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!updated) throw new WorkspaceError(404, "Хичээл олдсонгүй.");
+      return Response.json({ ok: true });
     }
 
     if (action === "create_draft") {

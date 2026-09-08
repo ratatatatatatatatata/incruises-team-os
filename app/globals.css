@@ -150,6 +150,19 @@ a { color: inherit; text-decoration: none; }
 .lesson-copy strong { font-size: 14px; }
 .lesson-copy small { margin-top: 5px; color: var(--muted); font-size: 11px; }
 .row-action { color: var(--blue-600); font-size: 11px; font-weight: 800; }
+.lesson-content-input { min-height: 210px !important; line-height: 1.6; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: 100; padding: 24px; display: grid; place-items: center; background: rgba(4, 15, 28, .72); backdrop-filter: blur(6px); }
+.lesson-dialog { width: min(760px, 100%); max-height: min(86vh, 900px); overflow: auto; border-radius: 18px; background: white; box-shadow: 0 28px 90px rgba(0, 0, 0, .3); }
+.lesson-dialog-header { padding: 28px 30px 22px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 1px solid var(--line); }
+.lesson-dialog-header h2 { margin: 13px 0 0; font-size: 28px; letter-spacing: -.035em; }
+.dialog-close { width: 38px; height: 38px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 50%; background: white; color: var(--muted); font-size: 24px; cursor: pointer; }
+.lesson-body { padding: 26px 30px; color: #34445a; font-size: 15px; line-height: 1.75; white-space: pre-wrap; }
+.lesson-body p { margin: 0 0 14px; }
+.lesson-editor { padding: 26px 30px; }
+.dialog-actions { padding: 18px 30px 26px; display: flex; justify-content: flex-end; gap: 10px; }
+.lesson-editor .dialog-actions { padding: 4px 0 0; }
+.publish-toggle { display: flex !important; grid-template-columns: auto 1fr; align-items: center; justify-content: flex-start; }
+.publish-toggle input { width: 18px !important; min-height: 18px !important; }
 .certification-panel { background: var(--navy-900); color: white; border: 0; }
 .certification-panel h3 { font-size: 29px; margin: 7px 0 22px; }
 .check-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
@@ -322,6 +335,11 @@ a { color: inherit; text-decoration: none; }
   .level-tabs { display: flex; overflow-x: auto; }
   .level-tabs button { min-width: 145px; }
   .lesson-row { grid-template-columns: 38px minmax(0,1fr); }
+  .dialog-backdrop { padding: 0; place-items: end center; }
+  .lesson-dialog { max-height: 92vh; border-radius: 18px 18px 0 0; }
+  .lesson-dialog-header, .lesson-body, .lesson-editor { padding-left: 20px; padding-right: 20px; }
+  .lesson-dialog-header h2 { font-size: 23px; }
+  .dialog-actions { padding-left: 20px; padding-right: 20px; flex-direction: column-reverse; }
   .row-action { display: none; }
   .lifecycle { display: flex; overflow-x: auto; }
   .lifecycle div { min-width: 155px; }
