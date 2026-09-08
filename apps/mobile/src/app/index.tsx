@@ -5,7 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import { levels, sources } from '@/constants/data';
 import { supabase } from '@/lib/supabase';
 
-type Membership = { role: 'builder' | 'coach' | 'director' | 'admin'; status: 'active' | 'disabled' };
+type Membership = { role: 'user' | 'builder' | 'coach' | 'director' | 'admin'; status: 'active' | 'disabled' };
 type Task = { id: number; member_name: string; milestone: string; next_action: string; due_label: string; risk: string; status: string };
 type Tab = 'home' | 'academy' | 'tasks' | 'sources';
 const tabs: Record<Tab, string> = { home: 'Нүүр', academy: 'Сургалт', tasks: 'Ажил', sources: 'Эх сурвалж' };

@@ -6,7 +6,7 @@ const allowedSourceIds = new Set<string>(officialSources.map((source) => source.
 const allowedLessonIds = new Set<string>(learningLevels.flatMap((level) => level.lessons.map((lesson) => lesson.id)));
 const allowedChannels = new Set(["Facebook", "Instagram", "Short video", "FAQ", "Message"]);
 
-type TeamRole = "builder" | "coach" | "director" | "admin";
+type TeamRole = "user" | "builder" | "coach" | "director" | "admin";
 
 type AuthContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
       const targetUserId = String(body.userId ?? "");
       const nextRole = String(body.role ?? "");
       const status = String(body.status ?? "");
-      if (!/^[0-9a-f-]{36}$/i.test(targetUserId) || !["builder", "coach", "director", "admin"].includes(nextRole) || !["active", "disabled"].includes(status)) {
+      if (!/^[0-9a-f-]{36}$/i.test(targetUserId) || !["user", "builder", "coach", "director", "admin"].includes(nextRole) || !["active", "disabled"].includes(status)) {
         return Response.json({ error: "Хэрэглэгчийн эрхийн мэдээлэл буруу байна." }, { status: 400 });
       }
       if (targetUserId === userId && (nextRole !== "admin" || status !== "active")) {

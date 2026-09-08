@@ -119,7 +119,7 @@ export const officialSources = [
 
 export type WorkspacePayload = {
   viewer: {
-    role: "builder" | "coach" | "director" | "admin";
+    role: "user" | "builder" | "coach" | "director" | "admin";
     canReview: boolean;
     canRecordCorporateApproval: boolean;
   };
@@ -150,7 +150,7 @@ export type WorkspacePayload = {
     id: string;
     email: string;
     displayName: string;
-    role: "builder" | "coach" | "director" | "admin";
+    role: "user" | "builder" | "coach" | "director" | "admin";
     status: "active" | "disabled";
     createdAt: string;
   }>;

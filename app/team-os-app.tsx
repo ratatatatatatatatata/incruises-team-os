@@ -7,7 +7,7 @@ import { learningLevels, officialSources, type WorkspacePayload } from "./team-o
 type Section = "overview" | "academy" | "content" | "members" | "vault" | "users";
 
 const emptyWorkspace: WorkspacePayload = {
-  viewer: { role: "builder", canReview: false, canRecordCorporateApproval: false },
+  viewer: { role: "user", canReview: false, canRecordCorporateApproval: false },
   progress: [],
   drafts: [],
   memberTasks: [],
@@ -366,7 +366,7 @@ function UserDirectory({ users, currentEmail, saving, onUpdate }: {
             <div className="user-directory-row" key={item.id}>
               <div className="user-avatar">{item.displayName.charAt(0).toUpperCase()}</div>
               <div className="user-identity"><strong>{item.displayName}</strong><span>{item.email}</span><small>{new Date(item.createdAt).toLocaleDateString("mn-MN")}{isCurrent ? " · Та" : ""}</small></div>
-              <label>Эрх<select value={item.role} disabled={saving || isCurrent} onChange={(event) => void onUpdate(item.id, event.target.value as typeof item.role, item.status)}><option value="builder">Builder</option><option value="coach">Coach</option><option value="director">Director</option><option value="admin">Admin</option></select></label>
+              <label>Эрх<select value={item.role} disabled={saving || isCurrent} onChange={(event) => void onUpdate(item.id, event.target.value as typeof item.role, item.status)}><option value="user">Хэрэглэгч</option><option value="builder">Builder</option><option value="coach">Coach</option><option value="director">Director</option><option value="admin">Admin</option></select></label>
               <label>Төлөв<select value={item.status} disabled={saving || isCurrent} onChange={(event) => void onUpdate(item.id, item.role, event.target.value as typeof item.status)}><option value="active">Идэвхтэй</option><option value="disabled">Идэвхгүй</option></select></label>
             </div>
           );

@@ -9,7 +9,7 @@ export type TeamOsUser = {
   access: "active" | "disabled" | "pending";
 };
 
-export type TeamRole = "builder" | "coach" | "director" | "admin";
+export type TeamRole = "user" | "builder" | "coach" | "director" | "admin";
 
 export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
   if (!isSupabaseConfigured()) return null;
