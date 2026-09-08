@@ -20,7 +20,7 @@ export default async function LoginPage({
         <div className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></div>
         <p className="eyebrow">PRIVATE TEAM ACCESS</p>
         <h1>{BRAND_NAME}<br />{PRODUCT_DESCRIPTOR}</h1>
-        <p className="signin-copy">Зөвхөн урилгаар нэвтэрдэг багийн орчин. Сургалт, контентын хяналт, гишүүний дараагийн алхмыг нэг дор удирдана.</p>
+        <p className="signin-copy">Багийн сургалт, контентын хяналт, гишүүний дараагийн алхмыг нэг дор удирдана.</p>
 
         {!configured && <p className="auth-message error" role="alert">Supabase environment variable тохируулаагүй байна.</p>}
         {params.error && <p className="auth-message error" role="alert">{params.error}</p>}
@@ -34,7 +34,8 @@ export default async function LoginPage({
             <button className="primary-button" formAction={login} disabled={!configured}>Нэвтрэх</button>
           </div>
         </form>
-        <p className="signin-note">Шинэ эрхийг багийн админ урилгаар олгоно. Нэвтэрсэн account бүр Team OS-ийн өгөгдөлд автоматаар эрхтэй болохгүй.</p>
+        <p className="signin-switch">Шинэ хэрэглэгч үү? <Link href="/signup">Бүртгүүлэх</Link></p>
+        <p className="signin-note">Бүртгүүлсний дараа имэйлээ баталгаажуулаад нэвтэрнэ.</p>
       </section>
     </main>
   );

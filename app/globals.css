@@ -220,6 +220,14 @@ a { color: inherit; text-decoration: none; }
 .task-row p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .task-row small { margin-top: 5px; color: #8491a4; font-size: 9px; }
 .task-row button { width: 32px; height: 32px; border: 1px solid #cfd9e5; border-radius: 50%; background: white; color: var(--green); font-weight: 900; cursor: pointer; }
+.user-directory { display: grid; padding-block: 8px; }
+.user-directory-row { min-height: 78px; padding: 13px 4px; display: grid; grid-template-columns: 42px minmax(220px,1fr) 150px 150px; gap: 14px; align-items: center; border-top: 1px solid #e8edf3; }
+.user-directory-row:first-child { border-top: 0; }
+.user-avatar { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--navy-900); color: white; font-weight: 850; }
+.user-identity strong, .user-identity span, .user-identity small { display: block; }
+.user-identity strong { font-size: 13px; }.user-identity span { margin-top: 3px; color: var(--muted); font-size: 11px; }.user-identity small { margin-top: 4px; color: #93a0b2; font-size: 9px; }
+.user-directory-row label { display: grid; gap: 5px; color: var(--muted); font-size: 9px; font-weight: 800; }
+.user-directory-row select { min-height: 38px; padding: 7px 9px; border: 1px solid #ced8e5; border-radius: 8px; background: white; color: var(--ink); font-size: 11px; }
 
 .vault-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
 .source-card { min-height: 148px; padding: 19px; display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 14px; border: 1px solid var(--line); background: white; transition: transform .18s ease, box-shadow .18s ease; }
@@ -242,6 +250,8 @@ a { color: inherit; text-decoration: none; }
 .signin-panel h1 { margin: 0; font-size: clamp(50px,10vw,80px); line-height: .9; letter-spacing: -.07em; }
 .signin-copy { margin: 28px 0; color: #b5c8db; max-width: 430px; line-height: 1.7; }
 .signin-note { color: #8198af; font-size: 10px; margin-top: 18px; }
+.signin-switch { color: #a8bdd1; font-size: 12px; margin: 20px 0 0; }
+.signin-switch a { color: var(--cyan-400); font-weight: 800; }
 .signin-form { display: grid; gap: 14px; }
 .signin-form label { display: grid; gap: 7px; color: #b8cadc; font-size: 11px; font-weight: 800; }
 .signin-form input { min-height: 44px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; background: rgba(255,255,255,.06); color: white; outline: none; }
@@ -281,6 +291,8 @@ a { color: inherit; text-decoration: none; }
   .progress-orbit strong { font-size: 30px; }
   .hero-actions { align-items: stretch; }
   .metric-grid, .overview-grid, .academy-layout, .content-layout, .member-layout { grid-template-columns: 1fr; }
+  .user-directory-row { grid-template-columns: 42px minmax(0,1fr); }
+  .user-directory-row label { grid-column: 2; }
   .level-tabs { grid-template-columns: 1fr 1fr; overflow: hidden; }
   .level-tabs button { min-height: 76px; }
   .field-grid { grid-template-columns: 1fr; }

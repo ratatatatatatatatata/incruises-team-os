@@ -15,23 +15,38 @@ function Logo() {
 }
 
 function Login() {
+  const [signupMode, setSignupMode] = useState(false);
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function submit() {
     setBusy(true); setError('');
-    const result = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (result.error) setError('Имэйл эсвэл нууц үг буруу байна.');
+    if (signupMode) {
+      if (!displayName.trim() || password.length < 8) {
+        setError('Нэрээ оруулж, 8-аас дээш тэмдэгттэй нууц үг сонгоно уу.');
+        setBusy(false);
+        return;
+      }
+      const result = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password, options: { data: { full_name: displayName.trim() } } });
+      if (result.error) setError('Бүртгэл үүсгэж чадсангүй. Имэйлээ шалгаад дахин оролдоно уу.');
+      else if (!result.data.session) Alert.alert('Бүртгэл үүслээ', 'Имэйлээр ирсэн холбоосоор бүртгэлээ баталгаажуулна уу.');
+    } else {
+      const result = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (result.error) setError('Имэйл эсвэл нууц үг буруу байна.');
+    }
     setBusy(false);
   }
   return <SafeAreaView style={s.safe}><View style={s.login}>
     <Logo /><Text style={s.eyebrow}>PRIVATE TEAM ACCESS</Text><Text style={s.brand}>inSuccess</Text><Text style={s.os}>TEAM OS</Text>
-    <Text style={s.copy}>Багийн сургалт, контентын хяналт, гишүүний дараагийн алхмыг нэг дор.</Text>
+    <Text style={s.copy}>{signupMode ? 'Шинэ хэрэглэгчийн бүртгэлээ үүсгэнэ үү.' : 'Багийн сургалт, контентын хяналт, гишүүний дараагийн алхмыг нэг дор.'}</Text>
+    {signupMode ? <TextInput style={s.input} value={displayName} onChangeText={setDisplayName} autoComplete="name" placeholder="Овог нэр" placeholderTextColor="#7290aa" /> : null}
     <TextInput style={s.input} value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="Имэйл" placeholderTextColor="#7290aa" />
     <TextInput style={s.input} value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="Нууц үг" placeholderTextColor="#7290aa" onSubmitEditing={submit} />
     {error ? <Text style={s.error}>{error}</Text> : null}
-    <Pressable style={[s.primary, (!email || !password) && s.disabled]} disabled={busy || !email || !password} onPress={submit}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>Нэвтрэх</Text>}</Pressable>
+    <Pressable style={[s.primary, (!email || !password || (signupMode && !displayName)) && s.disabled]} disabled={busy || !email || !password || (signupMode && !displayName)} onPress={submit}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{signupMode ? 'Бүртгүүлэх' : 'Нэвтрэх'}</Text>}</Pressable>
+    <Pressable style={s.authSwitch} onPress={() => { setSignupMode(value => !value); setError(''); }}><Text style={s.link}>{signupMode ? 'Бүртгэлтэй юу? Нэвтрэх' : 'Шинэ хэрэглэгч үү? Бүртгүүлэх'}</Text></Pressable>
   </View></SafeAreaView>;
 }
 
@@ -110,6 +125,7 @@ const s = StyleSheet.create({
   eyebrow: { color: '#72b7ff', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 9 }, brand: { color: '#fff', fontSize: 53, fontWeight: '300', letterSpacing: -3 }, os: { color: '#fff', fontSize: 39, fontWeight: '300', letterSpacing: -2, marginTop: -8 },
   copy: { color: '#a9bed1', fontSize: 15, lineHeight: 23, marginVertical: 23 }, copySmall: { color: '#afc3d3', fontSize: 14, lineHeight: 21 }, muted: { color: '#7894aa', fontSize: 12, lineHeight: 18 }, error: { color: '#ff8796', marginBottom: 10 },
   input: { backgroundColor: '#0b263b', borderColor: '#173e58', borderWidth: 1, borderRadius: 10, color: '#fff', fontSize: 16, marginBottom: 12, padding: 15 }, primary: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#398cf6', borderRadius: 10, height: 52 }, primaryText: { color: '#fff', fontWeight: '800' }, disabled: { opacity: .45 },
+  authSwitch: { alignItems: 'center', padding: 16 },
   pending: { backgroundColor: '#0a2236', borderColor: '#173b55', borderWidth: 1, borderRadius: 17, margin: 24, marginVertical: 'auto', padding: 26 }, secondary: { borderColor: '#31516a', borderWidth: 1, borderRadius: 9, padding: 13, alignItems: 'center' },
   top: { padding: 16, paddingHorizontal: 20, borderBottomColor: '#15354d', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, topBrand: { color: '#fff', fontSize: 24, fontWeight: '600' }, topSub: { color: '#6faadb', fontSize: 9, fontWeight: '800', letterSpacing: 1.4 }, link: { color: '#68b7ff', fontWeight: '700' },
   content: { padding: 20, paddingBottom: 35 }, hero: { color: '#fff', fontSize: 35, fontWeight: '700', letterSpacing: -1.2, marginBottom: 7 }, section: { color: '#f5f9fc', fontSize: 22, fontWeight: '700', marginTop: 25, marginBottom: 12 },

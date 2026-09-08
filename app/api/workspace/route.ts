@@ -37,6 +37,8 @@ type TaskRow = {
   risk: string;
   status: string;
 };
+type ProfileRow = { id: string; email: string; display_name: string; created_at: string };
+type MembershipRow = { user_id: string; role: TeamRole; status: "active" | "disabled" };
 
 class WorkspaceError extends Error {
   constructor(
@@ -133,6 +135,21 @@ export async function GET() {
       status: row.status,
     }));
 
+    let users: Array<{ id: string; email: string; displayName: string; role: TeamRole; status: "active" | "disabled"; createdAt: string }> = [];
+    if (role === "admin") {
+      const [profilesResult, membershipsResult] = await Promise.all([
+        supabase.from("user_profiles").select("id,email,display_name,created_at").order("created_at", { ascending: false }),
+        supabase.from("team_members").select("user_id,role,status"),
+      ]);
+      if (profilesResult.error) throw profilesResult.error;
+      if (membershipsResult.error) throw membershipsResult.error;
+      const memberships = new Map(((membershipsResult.data ?? []) as MembershipRow[]).map((member) => [member.user_id, member]));
+      users = ((profilesResult.data ?? []) as ProfileRow[]).flatMap((profile) => {
+        const membership = memberships.get(profile.id);
+        return membership ? [{ id: profile.id, email: profile.email, displayName: profile.display_name, role: membership.role, status: membership.status, createdAt: profile.created_at }] : [];
+      });
+    }
+
     return Response.json({
       viewer: {
         role,
@@ -142,6 +159,7 @@ export async function GET() {
       progress,
       drafts,
       memberTasks,
+      users,
     });
   } catch (error) {
     return serverError(error);
@@ -153,6 +171,28 @@ export async function POST(request: Request) {
     const { supabase, userId, role } = await authorizedContext();
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
+
+    if (action === "update_user") {
+      if (role !== "admin") throw new WorkspaceError(403, "Admin role required");
+      const targetUserId = String(body.userId ?? "");
+      const nextRole = String(body.role ?? "");
+      const status = String(body.status ?? "");
+      if (!/^[0-9a-f-]{36}$/i.test(targetUserId) || !["builder", "coach", "director", "admin"].includes(nextRole) || !["active", "disabled"].includes(status)) {
+        return Response.json({ error: "Хэрэглэгчийн эрхийн мэдээлэл буруу байна." }, { status: 400 });
+      }
+      if (targetUserId === userId && (nextRole !== "admin" || status !== "active")) {
+        return Response.json({ error: "Өөрийн админ эрхийг идэвхгүй болгох боломжгүй." }, { status: 409 });
+      }
+      const { data: updated, error } = await supabase
+        .from("team_members")
+        .update({ role: nextRole, status, updated_at: new Date().toISOString() })
+        .eq("user_id", targetUserId)
+        .select("user_id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!updated) throw new WorkspaceError(404, "Хэрэглэгч олдсонгүй.");
+      return Response.json({ ok: true });
+    }
 
     if (action === "toggle_lesson") {
       const lessonId = String(body.lessonId ?? "");

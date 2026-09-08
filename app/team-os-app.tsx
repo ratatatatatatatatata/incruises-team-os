@@ -4,13 +4,14 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "./brand";
 import { learningLevels, officialSources, type WorkspacePayload } from "./team-os-data";
 
-type Section = "overview" | "academy" | "content" | "members" | "vault";
+type Section = "overview" | "academy" | "content" | "members" | "vault" | "users";
 
 const emptyWorkspace: WorkspacePayload = {
   viewer: { role: "builder", canReview: false, canRecordCorporateApproval: false },
   progress: [],
   drafts: [],
   memberTasks: [],
+  users: [],
 };
 
 const navItems: Array<{ id: Section; label: string; short: string; symbol: string }> = [
@@ -19,6 +20,7 @@ const navItems: Array<{ id: Section; label: string; short: string; symbol: strin
   { id: "content", label: "Content Studio", short: "Контент", symbol: "✦" },
   { id: "members", label: "Member Success", short: "Members", symbol: "◎" },
   { id: "vault", label: "Source Vault", short: "Vault", symbol: "◇" },
+  { id: "users", label: "Хэрэглэгчид", short: "Users", symbol: "♙" },
 ];
 
 const statusLabels: Record<string, string> = {
@@ -51,6 +53,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
     sourceId: string;
   }>({ title: "", channel: "Facebook", sourceId: officialSources[0].id });
   const [memberForm, setMemberForm] = useState({ memberName: "", milestone: "72 цаг", nextAction: "", dueLabel: "Өнөөдөр", risk: "normal" });
+  const visibleNavItems = user.role === "admin" ? navItems : navItems.filter((item) => item.id !== "users");
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -136,7 +139,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
           <div><strong>{BRAND_NAME}</strong><small>{PRODUCT_DESCRIPTOR}</small></div>
         </div>
         <nav className="side-nav" aria-label="Үндсэн цэс">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <button key={item.id} className={section === item.id ? "active" : ""} onClick={() => setSection(item.id)}>
               <span className="nav-symbol" aria-hidden="true">{item.symbol}</span>
               <span>{item.label}</span>
@@ -153,7 +156,7 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
         <header className="topbar">
           <div>
             <p className="eyebrow">PRIVATE TEAM PLATFORM</p>
-            <h1>{navItems.find((item) => item.id === section)?.label}</h1>
+            <h1>{visibleNavItems.find((item) => item.id === section)?.label}</h1>
           </div>
           <div className="topbar-actions">
             <div className="sync-state"><span className={loading ? "pulse" : ""} />{loading ? "Холбож байна" : "Өгөгдөл шинэ"}</div>
@@ -325,13 +328,51 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
               <article className="policy-panel"><div><p className="eyebrow">PILOT CONTROLS</p><h3>Системийн таслах шугам</h3></div><ul><li>Auto-publish болон auto-DM байхгүй</li><li>Өөрийн нооргийг өөрөө approve хийхгүй</li><li>Company approval-д тусдаа reference шаарддаг</li><li>Бүртгэл, төлбөр, booking зөвхөн албан ёсны portal-д</li></ul><p><strong>UNVERIFIED:</strong> Монголын эрх зүй, татвар, шууд борлуулалтын ангилалд local counsel sign-off шаардлагатай. Энэ app compliance guarantee өгөхгүй.</p></article>
             </section>
           )}
+
+          {section === "users" && user.role === "admin" && (
+            <UserDirectory
+              users={workspace.users}
+              currentEmail={user.email}
+              saving={saving}
+              onUpdate={(userId, role, status) => runAction({ action: "update_user", userId, role, status }, "Хэрэглэгчийн эрх шинэчлэгдлээ.")}
+            />
+          )}
         </div>
       </main>
 
       <nav className="mobile-nav" aria-label="Гар утасны цэс">
-        {navItems.map((item) => <button key={item.id} className={section === item.id ? "active" : ""} onClick={() => setSection(item.id)}><span>{item.symbol}</span>{item.short}</button>)}
+        {visibleNavItems.map((item) => <button key={item.id} className={section === item.id ? "active" : ""} onClick={() => setSection(item.id)}><span>{item.symbol}</span>{item.short}</button>)}
       </nav>
     </div>
+  );
+}
+
+function UserDirectory({ users, currentEmail, saving, onUpdate }: {
+  users: WorkspacePayload["users"];
+  currentEmail: string;
+  saving: boolean;
+  onUpdate: (userId: string, role: WorkspacePayload["users"][number]["role"], status: WorkspacePayload["users"][number]["status"]) => Promise<void>;
+}) {
+  return (
+    <section className="section-stack">
+      <div className="section-intro">
+        <div><p className="eyebrow blue">USER MANAGEMENT</p><h2>Бүртгэлтэй хэрэглэгчид</h2><p>Шинээр бүртгүүлсэн хэрэглэгч энд автоматаар нэмэгдэнэ. Админ эрх болон төлөвийг удирдана.</p></div>
+        <div className="summary-pill"><strong>{users.length}</strong><span>нийт хэрэглэгч</span></div>
+      </div>
+      <article className="panel user-directory">
+        {users.length === 0 ? <EmptyState title="Хэрэглэгч алга" copy="Эхний хэрэглэгч бүртгүүлсний дараа энд харагдана." /> : users.map((item) => {
+          const isCurrent = item.email === currentEmail;
+          return (
+            <div className="user-directory-row" key={item.id}>
+              <div className="user-avatar">{item.displayName.charAt(0).toUpperCase()}</div>
+              <div className="user-identity"><strong>{item.displayName}</strong><span>{item.email}</span><small>{new Date(item.createdAt).toLocaleDateString("mn-MN")}{isCurrent ? " · Та" : ""}</small></div>
+              <label>Эрх<select value={item.role} disabled={saving || isCurrent} onChange={(event) => void onUpdate(item.id, event.target.value as typeof item.role, item.status)}><option value="builder">Builder</option><option value="coach">Coach</option><option value="director">Director</option><option value="admin">Admin</option></select></label>
+              <label>Төлөв<select value={item.status} disabled={saving || isCurrent} onChange={(event) => void onUpdate(item.id, item.role, event.target.value as typeof item.status)}><option value="active">Идэвхтэй</option><option value="disabled">Идэвхгүй</option></select></label>
+            </div>
+          );
+        })}
+      </article>
+    </section>
   );
 }
 

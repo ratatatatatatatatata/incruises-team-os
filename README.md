@@ -24,7 +24,9 @@ Production: <https://incruises-team-os.vercel.app>
 - Content Studio: draft → тусдаа reviewer → internal review → company approval reference workflow
 - Member Success даалгаврын самбар
 - Албан эх сурвалжийн Source Vault
-- Invite-only Supabase email/password authentication
+- Supabase email/password registration and authentication
+- New user profile + active builder membership automation
+- Admin-only user directory with role and access management
 - Active team membership, role separation, least-privilege RLS policies
 - Mobile-friendly PWA
 
@@ -85,9 +87,9 @@ Invite template-ийн холбоос:
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password
 ```
 
-Hosted Supabase Auth дээр public email sign-up болон ашигладаггүй provider-уудыг OFF, leaked-password protection-ийг ON болгоно. Repository дахь `enable_signup = false` нь local parity; hosted setting-ийг Dashboard/Management API дээр тусад нь баталгаажуулна.
+Hosted Supabase Auth дээр email sign-up-ийг ON, ашигладаггүй provider-уудыг OFF, leaked-password protection-ийг ON болгоно. Repository дахь `enable_signup = true` нь local parity; hosted setting-ийг Dashboard/Management API дээр тусад нь баталгаажуулна.
 
-Шинэ auth user Team OS-ийн өгөгдөлд автоматаар эрх авахгүй. `public.team_members` дахь membership-ийг админ тусад нь active болгоно. Role-г `user_metadata` эсвэл `user_profiles.role`-оос authorization-д ашиглахгүй.
+Шинэ auth user-д `public.user_profiles` болон идэвхтэй builder membership автоматаар үүснэ. Админ хэрэглэгчийн role болон access төлөвийг “Хэрэглэгчид” хэсгээс удирдана. Role-г `user_metadata` эсвэл `user_profiles.role`-оос authorization-д ашиглахгүй.
 
 ## Шалгалт
 

@@ -14,22 +14,28 @@ test("auth redirect accepts only same-origin relative paths", () => {
   assert.equal(safeNextPath(null, origin), "/");
 });
 
-test("public sign-up is removed and membership is server-authoritative", async () => {
-  const [actions, login, currentUser, config, membershipMigration] = await Promise.all([
-    readFile(new URL("../app/login/actions.ts", import.meta.url), "utf8"),
+test("public sign-up creates server-authoritative membership records", async () => {
+  const [login, signup, currentUser, config, membershipMigration, registrationMigration] = await Promise.all([
     readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/signup/actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/current-user.ts", import.meta.url), "utf8"),
     readFile(new URL("../supabase/config.toml", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260829062550_harden_membership_access.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260908062000_enable_registration_and_user_directory.sql", import.meta.url), "utf8"),
   ]);
 
-  assert.doesNotMatch(actions + login, /signUp|signup|Бүртгүүлэх/);
-  assert.match(config, /enable_signup = false/);
+  assert.match(login, /Бүртгүүлэх/);
+  assert.match(signup, /auth\.signUp/);
+  assert.match(config, /enable_signup = true/);
   assert.match(currentUser, /team_members/);
   assert.doesNotMatch(currentUser, /metadata\.(role|app_role)|user_metadata.*\["role"\]/);
   assert.match(membershipMigration, /create table if not exists public\.team_members/);
   assert.match(membershipMigration, /revoke all on table public\.team_members from anon, authenticated/);
   assert.doesNotMatch(membershipMigration, /grant (insert|update|delete).*team_members.*authenticated/i);
+  assert.match(registrationMigration, /create trigger on_auth_user_created_create_team_profile/);
+  assert.match(registrationMigration, /security definer/);
+  assert.match(registrationMigration, /set search_path = ''/);
+  assert.match(registrationMigration, /team_members_update_admin/);
 });
 
 test("production accepts Vercel Marketplace Supabase environment names", async () => {

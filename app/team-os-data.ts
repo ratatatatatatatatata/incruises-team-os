@@ -146,4 +146,12 @@ export type WorkspacePayload = {
     risk: string;
     status: string;
   }>;
+  users: Array<{
+    id: string;
+    email: string;
+    displayName: string;
+    role: "builder" | "coach" | "director" | "admin";
+    status: "active" | "disabled";
+    createdAt: string;
+  }>;
 };
