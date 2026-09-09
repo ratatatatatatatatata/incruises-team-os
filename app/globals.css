@@ -341,9 +341,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .panel { padding: 18px; border-radius: 13px; }
   .panel-heading { gap: 10px; }
   .panel-heading h3, .panel > h3 { font-size: 19px; }
-  .level-tabs { display: flex; overflow-x: auto; }
-  .level-tabs button { min-width: 145px; }
-  .lesson-row { grid-template-columns: 38px minmax(0,1fr); }
+  .level-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; border-radius: 12px; }
+  .level-tabs button { width: 100%; min-width: 0; min-height: 82px; padding: 12px; border-right: 1px solid var(--line); overflow: hidden; }
+  .level-tabs button:nth-child(2n) { border-right: 0; }
+  .level-tabs button:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: 0; }
+  .level-tabs span { font-size: 11px; overflow-wrap: anywhere; }
+  .lesson-panel .panel-heading > div:first-child { min-width: 0; }
+  .lesson-count { flex: 0 0 auto; font-size: 27px; }
+  .lesson-row { grid-template-columns: 38px minmax(0,1fr); padding: 13px 0; gap: 12px; }
+  .lesson-copy { min-width: 0; }
+  .lesson-copy strong { line-height: 1.35; overflow-wrap: anywhere; }
   .dialog-backdrop { padding: 0; place-items: end center; }
   .lesson-dialog { max-height: 92vh; border-radius: 18px 18px 0 0; }
   .lesson-dialog-header, .lesson-body, .lesson-editor { padding-left: 20px; padding-right: 20px; }
@@ -369,6 +376,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .signin-copy { margin: 20px 0; font-size: 13px; line-height: 1.55; }
   .signin-form input { min-height: 48px; font-size: 16px; }
   .signin-actions .primary-button { width: 100%; min-height: 48px; }
+  .mobile-nav { grid-auto-flow: row; grid-auto-columns: unset; grid-template-columns: repeat(5, minmax(0, 1fr)); overflow-x: hidden; padding-left: 3px; padding-right: 3px; }
+  .mobile-nav:has(button:nth-child(6)) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .mobile-nav button { width: 100%; padding-inline: 2px; font-size: 8px; overflow: hidden; text-overflow: clip; }
+  .mobile-nav button span { font-size: 17px; }
 }
 
 @media (max-width: 380px) {
