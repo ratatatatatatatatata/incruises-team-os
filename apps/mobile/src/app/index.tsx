@@ -7,8 +7,34 @@ import { supabase } from '@/lib/supabase';
 
 type Membership = { role: 'user' | 'builder' | 'coach' | 'director' | 'admin'; status: 'active' | 'disabled' };
 type Task = { id: number; member_name: string; milestone: string; next_action: string; due_label: string; risk: string; status: string };
-type Tab = 'home' | 'academy' | 'tasks' | 'sources';
-const tabs: Record<Tab, string> = { home: 'Нүүр', academy: 'Сургалт', tasks: 'Ажил', sources: 'Эх сурвалж' };
+type Tab = 'home' | 'academy' | 'tasks' | 'sources' | 'account';
+const tabs: Record<Tab, string> = { home: 'Нүүр', academy: 'Сургалт', tasks: 'Ажил', sources: 'Эх сурвалж', account: 'Бүртгэл' };
+
+function PrivacyLinks() {
+  return <View style={s.accountLinks}><Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://insuccess.net/privacy')}><Text style={s.link}>Нууцлалын бодлого</Text></Pressable><Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://insuccess.net/support')}><Text style={s.link}>Тусламж</Text></Pressable></View>;
+}
+
+function AccountControls() {
+  const [deleting, setDeleting] = useState(false);
+  async function removeAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    const { data, error } = await supabase.functions.invoke('delete-account', { body: { confirmation: 'DELETE MY ACCOUNT' } });
+    if (error || data?.deleted !== true) {
+      setDeleting(false);
+      Alert.alert('Устгаж чадсангүй', 'Таны бүртгэл устгагдаагүй. Холболтоо шалгаад дахин оролдоно уу.');
+      return;
+    }
+    await supabase.auth.signOut({ scope: 'local' });
+  }
+  function confirmDelete() {
+    Alert.alert('Бүртгэлээ бүрмөсөн устгах уу?', 'Таны нэвтрэх бүртгэл, профайл, сургалтын ахиц, хувийн даалгавар болон draft контент устна. Энэ үйлдлийг буцаах боломжгүй.', [
+      { text: 'Болих', style: 'cancel' },
+      { text: 'Бүрмөсөн устгах', style: 'destructive', onPress: removeAccount },
+    ]);
+  }
+  return <><PrivacyLinks /><Pressable accessibilityRole="button" style={s.deleteButton} disabled={deleting} onPress={confirmDelete}><Text style={s.deleteText}>{deleting ? 'Устгаж байна…' : 'Бүртгэл устгах'}</Text></Pressable></>;
+}
 
 function Logo() {
   return <View style={s.logo}><View style={[s.block, s.b1]} /><View style={[s.block, s.b2]} /><View style={[s.block, s.b3]} /></View>;
@@ -47,11 +73,12 @@ function Login() {
     {error ? <Text style={s.error}>{error}</Text> : null}
     <Pressable style={[s.primary, (!email || !password || (signupMode && !displayName)) && s.disabled]} disabled={busy || !email || !password || (signupMode && !displayName)} onPress={submit}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryText}>{signupMode ? 'Бүртгүүлэх' : 'Нэвтрэх'}</Text>}</Pressable>
     <Pressable style={s.authSwitch} onPress={() => { setSignupMode(value => !value); setError(''); }}><Text style={s.link}>{signupMode ? 'Бүртгэлтэй юу? Нэвтрэх' : 'Шинэ хэрэглэгч үү? Бүртгүүлэх'}</Text></Pressable>
+    <PrivacyLinks />
   </View></SafeAreaView>;
 }
 
 function Pending({ email }: { email: string }) {
-  return <SafeAreaView style={s.safe}><View style={s.pending}><Logo /><Text style={s.section}>Эрх хүлээгдэж байна</Text><Text style={s.muted}>{email}</Text><Text style={s.copy}>Админ таны багийн эрхийг идэвхжүүлсний дараа workspace нээгдэнэ.</Text><Pressable style={s.secondary} onPress={() => supabase.auth.signOut()}><Text style={s.link}>Гарах</Text></Pressable></View></SafeAreaView>;
+  return <SafeAreaView style={s.safe}><View style={s.pending}><Logo /><Text style={s.section}>Эрх хүлээгдэж байна</Text><Text style={s.muted}>{email}</Text><Text style={s.copy}>Админ таны багийн эрхийг идэвхжүүлсний дараа workspace нээгдэнэ.</Text><AccountControls /><Pressable style={s.secondary} onPress={() => supabase.auth.signOut()}><Text style={s.link}>Гарах</Text></Pressable></View></SafeAreaView>;
 }
 
 function TaskCard({ task, done }: { task: Task; done: (id: number) => void }) {
@@ -94,6 +121,7 @@ function Workspace({ session, member }: { session: Session; member: Membership }
       {tab === 'academy' && <><Text style={s.eyebrow}>ACADEMY</Text><Text style={s.hero}>Сургалтын зам</Text>{levels.map(level => <View style={s.card} key={level.id}><Text style={s.kicker}>{level.label}</Text><Text style={s.cardTitle}>{level.title}</Text><Text style={s.muted}>{level.note}</Text>{level.lessons.map(lesson => <Pressable style={s.lesson} key={lesson[0]} onPress={() => toggle(lesson[0])}><View style={[s.check, completed.has(lesson[0]) && s.checkDone]}><Text style={s.checkText}>{completed.has(lesson[0]) ? '✓' : ''}</Text></View><View style={s.flex}><Text style={s.lessonTitle}>{lesson[1]}</Text><Text style={s.muted}>{lesson[2]}</Text></View></Pressable>)}</View>)}</>}
       {tab === 'tasks' && <><Text style={s.eyebrow}>MEMBER SUCCESS</Text><Text style={s.hero}>Дараагийн ажлууд</Text>{open.map(task => <TaskCard key={task.id} task={task} done={done} />)}{open.length === 0 && <Text style={s.empty}>Одоогоор нээлттэй ажил алга.</Text>}</>}
       {tab === 'sources' && <><Text style={s.eyebrow}>SOURCE VAULT</Text><Text style={s.hero}>Албан эх сурвалж</Text><Text style={s.copySmall}>Мэдээллээ нийтлэхийн өмнө албан баримтаар баталгаажуулна уу.</Text>{sources.map(source => <Pressable style={s.card} key={source[0]} onPress={() => Linking.openURL(source[2])}><Text style={s.kicker}>{source[1]} · CURRENT</Text><Text style={s.cardTitle}>{source[0]}</Text><Text style={s.link}>Баримт нээх ↗</Text></Pressable>)}</>}
+      {tab === 'account' && <><Text style={s.eyebrow}>ACCOUNT</Text><Text style={s.hero}>Миний бүртгэл</Text><Text style={s.copySmall}>{session.user.email}</Text><View style={s.card}><Text style={s.cardTitle}>Нууцлал ба тусламж</Text><Text style={s.copySmall}>Бүртгэлээ устгавал хувийн сургалтын ахиц, даалгаврыг сэргээх боломжгүй.</Text><AccountControls /></View></>}
     </ScrollView>
     <View style={s.tabs}>{(Object.keys(tabs) as Tab[]).map(item => <Pressable style={s.tab} key={item} onPress={() => setTab(item)}><View style={[s.dot, tab === item && s.dotOn]} /><Text style={[s.tabText, tab === item && s.tabOn]}>{tabs[item]}</Text></Pressable>)}</View>
   </SafeAreaView>;
@@ -126,6 +154,7 @@ const s = StyleSheet.create({
   copy: { color: '#a9bed1', fontSize: 15, lineHeight: 23, marginVertical: 23 }, copySmall: { color: '#afc3d3', fontSize: 14, lineHeight: 21 }, muted: { color: '#7894aa', fontSize: 12, lineHeight: 18 }, error: { color: '#ff8796', marginBottom: 10 },
   input: { backgroundColor: '#0b263b', borderColor: '#173e58', borderWidth: 1, borderRadius: 10, color: '#fff', fontSize: 16, marginBottom: 12, padding: 15 }, primary: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#398cf6', borderRadius: 10, height: 52 }, primaryText: { color: '#fff', fontWeight: '800' }, disabled: { opacity: .45 },
   authSwitch: { alignItems: 'center', padding: 16 },
+  accountLinks: { gap: 15, alignItems: 'center', paddingVertical: 20 }, deleteButton: { borderWidth: 1, borderColor: '#8c4251', borderRadius: 9, padding: 15, alignItems: 'center', marginVertical: 12 }, deleteText: { color: '#ff9ba9', fontWeight: '700' },
   pending: { backgroundColor: '#0a2236', borderColor: '#173b55', borderWidth: 1, borderRadius: 17, margin: 24, marginVertical: 'auto', padding: 26 }, secondary: { borderColor: '#31516a', borderWidth: 1, borderRadius: 9, padding: 13, alignItems: 'center' },
   top: { padding: 16, paddingHorizontal: 20, borderBottomColor: '#15354d', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, topBrand: { color: '#fff', fontSize: 24, fontWeight: '600' }, topSub: { color: '#6faadb', fontSize: 9, fontWeight: '800', letterSpacing: 1.4 }, link: { color: '#68b7ff', fontWeight: '700' },
   content: { padding: 20, paddingBottom: 35 }, hero: { color: '#fff', fontSize: 35, fontWeight: '700', letterSpacing: -1.2, marginBottom: 7 }, section: { color: '#f5f9fc', fontSize: 22, fontWeight: '700', marginTop: 25, marginBottom: 12 },

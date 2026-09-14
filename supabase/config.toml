@@ -28,3 +28,8 @@ max_enrolled_factors = 10
 [auth.mfa.totp]
 enroll_enabled = true
 verify_enabled = true
+
+# The function validates every bearer token with Supabase Auth getUser before deletion.
+# Gateway legacy-JWT verification is disabled to support current Auth signing keys.
+[functions.delete-account]
+verify_jwt = false
