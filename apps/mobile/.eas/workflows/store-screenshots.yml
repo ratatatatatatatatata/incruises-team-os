@@ -1,0 +1,30 @@
+name: Capture native App Store screenshots
+on:
+  push:
+    branches: ['codex/app-store-readiness']
+    paths: ['apps/mobile/.eas/workflows/store-screenshots.yml', 'apps/mobile/.maestro/store-screenshots.yml']
+jobs:
+  build_simulator:
+    name: Build iOS simulator app
+    type: build
+    params:
+      platform: ios
+      profile: store-screenshots
+  iphone_screenshots:
+    name: Capture iPhone screens
+    needs: [build_simulator]
+    type: maestro
+    environment: production
+    params:
+      build_id: ${{ needs.build_simulator.outputs.build_id }}
+      flow_path: .maestro/store-screenshots.yml
+      device_identifier: iPhone 16 Plus
+  ipad_screenshots:
+    name: Capture iPad screens
+    needs: [build_simulator]
+    type: maestro
+    environment: production
+    params:
+      build_id: ${{ needs.build_simulator.outputs.build_id }}
+      flow_path: .maestro/store-screenshots.yml
+      device_identifier: iPad Pro 13-inch (M4)

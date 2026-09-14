@@ -1,0 +1,11 @@
+appId: com.insuccess.teamos
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "TEAM OS"
+    timeout: 30000
+- takeScreenshot: inSuccess-login
+- tapOn: "Шинэ хэрэглэгч үү? Бүртгүүлэх"
+- assertVisible: "Шинэ хэрэглэгчийн бүртгэлээ үүсгэнэ үү."
+- takeScreenshot: inSuccess-register
