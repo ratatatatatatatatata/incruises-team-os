@@ -12,8 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Supabase Edge Functions are validated by the Supabase/Deno bundler,
+    // not the Next.js Node/DOM TypeScript configuration.
+    "supabase/functions/**",
   ]),
 ]);
 
 export default eslintConfig;
-

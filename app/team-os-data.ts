@@ -1,3 +1,5 @@
+import type { StoredSuccessMap } from "@/lib/success-map/contracts";
+
 export const learningLevels = [
   {
     id: "l0",
@@ -164,4 +166,5 @@ export type WorkspacePayload = {
     status: "active" | "disabled";
     createdAt: string;
   }>;
+  successMap: StoredSuccessMap | null;
 };

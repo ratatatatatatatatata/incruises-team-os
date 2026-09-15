@@ -7,6 +7,7 @@ export type TeamOsUser = {
   email: string;
   role: TeamRole | null;
   access: "active" | "disabled" | "pending";
+  onboardingRequired: boolean;
 };
 
 export type TeamRole = "user" | "builder" | "coach" | "director" | "admin";
@@ -29,13 +30,17 @@ export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
 
   const { data: membership, error: membershipError } = await supabase
     .from("team_members")
-    .select("role,status")
+    .select("role,status,onboarding_required")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (membershipError) throw membershipError;
 
-  const activeMembership = membership as { role: TeamRole; status: "active" | "disabled" } | null;
+  const activeMembership = membership as {
+    role: TeamRole;
+    status: "active" | "disabled";
+    onboarding_required: boolean;
+  } | null;
   const access = activeMembership?.status ?? "pending";
   let displayName = fullName ?? email;
 
@@ -54,5 +59,6 @@ export async function getCurrentTeamOsUser(): Promise<TeamOsUser | null> {
     displayName,
     role: activeMembership?.role ?? null,
     access,
+    onboardingRequired: activeMembership?.onboarding_required ?? false,
   };
 }

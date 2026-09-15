@@ -3,8 +3,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "./brand";
 import { learningLevels, officialSources, type WorkspacePayload } from "./team-os-data";
+import { AdminInvitations } from "./admin-invitations";
 
-type Section = "overview" | "academy" | "content" | "members" | "vault" | "users";
+type Section = "overview" | "my-path" | "academy" | "content" | "members" | "vault" | "users";
 
 const emptyWorkspace: WorkspacePayload = {
   viewer: { role: "user", canReview: false, canRecordCorporateApproval: false },
@@ -13,10 +14,12 @@ const emptyWorkspace: WorkspacePayload = {
   drafts: [],
   memberTasks: [],
   users: [],
+  successMap: null,
 };
 
 const navItems: Array<{ id: Section; label: string; short: string; symbol: string }> = [
   { id: "overview", label: "Хяналтын төв", short: "Төв", symbol: "⌂" },
+  { id: "my-path", label: "Миний зам", short: "Зам", symbol: "◉" },
   { id: "academy", label: "Academy", short: "Academy", symbol: "▤" },
   { id: "content", label: "Content Studio", short: "Контент", symbol: "✦" },
   { id: "members", label: "Member Success", short: "Members", symbol: "◎" },
@@ -40,8 +43,11 @@ async function fetchWorkspace(): Promise<WorkspacePayload> {
   return (await response.json()) as WorkspacePayload;
 }
 
-export function TeamOsApp({ user }: { user: { name: string; email: string; role: string } }) {
-  const [section, setSection] = useState<Section>("overview");
+export function TeamOsApp({ user, initialSection }: { user: { name: string; email: string; role: string }; initialSection?: string }) {
+  const [section, setSection] = useState<Section>(() => {
+    const allowed = navItems.some((item) => item.id === initialSection) && (initialSection !== "users" || user.role === "admin");
+    return allowed ? initialSection as Section : "overview";
+  });
   const [workspace, setWorkspace] = useState<WorkspacePayload>(emptyWorkspace);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -191,9 +197,14 @@ export function TeamOsApp({ user }: { user: { name: string; email: string; role:
               total={totalLessons}
               pendingTasks={pendingMemberTasks}
               drafts={activeDrafts}
+              successMap={workspace.successMap}
               onNavigate={setSection}
               onSelectLevel={(index) => { setSelectedLevel(index); setSection("academy"); }}
             />
+          )}
+
+          {section === "my-path" && (
+            <SuccessMapPanel successMap={workspace.successMap} />
           )}
 
           {section === "academy" && (
@@ -437,9 +448,10 @@ function UserDirectory({ users, currentEmail, saving, onUpdate }: {
   return (
     <section className="section-stack">
       <div className="section-intro">
-        <div><p className="eyebrow blue">USER MANAGEMENT</p><h2>Бүртгэлтэй хэрэглэгчид</h2><p>Шинээр бүртгүүлсэн хэрэглэгч энд автоматаар нэмэгдэнэ. Админ эрх болон төлөвийг удирдана.</p></div>
+        <div><p className="eyebrow blue">USER MANAGEMENT</p><h2>Урилга ба хэрэглэгчийн эрх</h2><p>Админ имэйл урилга илгээж, бүртгэлтэй хэрэглэгчийн эрх болон төлөвийг удирдана.</p></div>
         <div className="summary-pill"><strong>{users.length}</strong><span>нийт хэрэглэгч</span></div>
       </div>
+      <AdminInvitations />
       <article className="panel user-directory">
         {users.length === 0 ? <EmptyState title="Хэрэглэгч алга" copy="Эхний хэрэглэгч бүртгүүлсний дараа энд харагдана." /> : users.map((item) => {
           const isCurrent = item.email === currentEmail;
@@ -457,12 +469,13 @@ function UserDirectory({ users, currentEmail, saving, onUpdate }: {
   );
 }
 
-function Overview({ progressPercent, completed, total, pendingTasks, drafts, onNavigate, onSelectLevel }: {
+function Overview({ progressPercent, completed, total, pendingTasks, drafts, successMap, onNavigate, onSelectLevel }: {
   progressPercent: number;
   completed: number;
   total: number;
   pendingTasks: WorkspacePayload["memberTasks"];
   drafts: WorkspacePayload["drafts"];
+  successMap: WorkspacePayload["successMap"];
   onNavigate: (section: Section) => void;
   onSelectLevel: (index: number) => void;
 }) {
@@ -475,12 +488,42 @@ function Overview({ progressPercent, completed, total, pendingTasks, drafts, onN
     </div>
     <div className="metric-grid"><Metric label="Сургалт" value={`${completed}/${total}`} copy="completion бүртгэл" tone="blue" /><Metric label="Member Success" value={String(pendingTasks.length)} copy="нээлттэй ажиллагаа" tone="cyan" /><Metric label="Контент" value={String(reviewCount)} copy="тусдаа хяналт хүлээж байна" tone="violet" /><Metric label="Approval ref" value={String(approvedCount)} copy="reference бүртгэлтэй" tone="green" /></div>
     <div className="overview-grid">
+      <article className="panel focus-panel personal-focus"><div className="panel-heading"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h3>{successMap ? successMap.plan.todayAction.title : "Миний замаа нээх"}</h3></div><span className="tag">{successMap ? `${successMap.plan.todayAction.minutes} мин` : "5 асуулт"}</span></div><p>{successMap ? successMap.plan.todayAction.detail : "5 хариултаар 7/30 хоногийн content ба management төлөвлөгөөг үүсгэнэ."}</p><button className="text-button" onClick={() => onNavigate("my-path")}>{successMap ? "Бүх төлөвлөгөө →" : "Эхлүүлэх →"}</button></article>
       <article className="panel focus-panel"><div className="panel-heading"><div><p className="eyebrow blue">NEXT BEST ACTION</p><h3>L0 · Компани ба нөхцөл</h3></div><span className="tag">35 мин</span></div><p>Багийн бүх ярианы суурь: Member ба Partner-ийн ялгаа, зөв хүлээлт, амлалтгүй тайлбар.</p><div className="mini-progress"><span style={{ width: `${progressPercent}%` }} /></div><button className="text-button" onClick={() => onSelectLevel(0)}>Хичээл нээх →</button></article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">MEMBER SUCCESS</p><h3>Анхаарах дараалал</h3></div><button className="text-button" onClick={() => onNavigate("members")}>Бүгдийг харах</button></div>{pendingTasks.length === 0 ? <EmptyState title="Task нэмээгүй байна" copy="72 цагийн onboarding-оос эхэлнэ үү." /> : pendingTasks.slice(0, 3).map((task) => <div className="compact-row" key={task.id}><span className={`risk-dot ${task.risk}`} /><div><strong>{task.memberName}</strong><small>{task.nextAction}</small></div><b>{task.dueLabel}</b></div>)}</article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">CONTENT GUARD</p><h3>Нийтлэх урсгал</h3></div><button className="text-button" onClick={() => onNavigate("content")}>Studio нээх</button></div>{drafts.length === 0 ? <EmptyState title="Ноорог алга" copy="Албан эх сурвалжтай контент үүсгэнэ үү." /> : drafts.slice(0, 3).map((draft) => <div className="compact-row" key={draft.id}><Status status={draft.status} /><div><strong>{draft.title}</strong><small>{draft.channel}</small></div><b>→</b></div>)}</article>
       <article className="panel guard-panel"><div><span className="shield">✓</span><p className="eyebrow cyan">PILOT CONTROLS</p><h3>Source + review gate</h3><p>Auto-publish хаалттай. Source lock, тусдаа reviewer, approval reference-ийн бүртгэл идэвхтэй.</p></div><button className="text-button light" onClick={() => onNavigate("vault")}>Source Vault →</button></article>
     </div>
   </section>;
+}
+
+function SuccessMapPanel({ successMap }: { successMap: WorkspacePayload["successMap"] }) {
+  if (!successMap) {
+    return (
+      <section className="section-stack">
+        <div className="section-intro"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h2>5 хариултаар ажлын замаа тодруул.</h2><p>Starter profile, өнөөдрийн алхам, 7 хоногийн content rhythm, 30 хоногийн management focus гарна.</p></div><div className="summary-pill"><strong>5</strong><span>үндсэн асуулт</span></div></div>
+        <article className="panel map-empty"><span className="shield">◉</span><h3>Таны Success Map хараахан үүсээгүй байна</h3><p>Хариултаа хүссэн үедээ засварлаж, төлөвлөгөөг дахин шинэчилж болно.</p><a className="primary-button" href="/onboarding">5 асуултаа эхлүүлэх</a></article>
+      </section>
+    );
+  }
+
+  const plan = successMap.plan;
+  return (
+    <section className="section-stack success-map-section">
+      <div className="section-intro"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h2>Таны 7/30 хоногийн ажлын зураг</h2><p>{plan.whyThisPlan}</p></div><div className="summary-pill"><strong>{successMap.planSource === "ai_gateway" ? "AI" : "Rule"}</strong><span>{new Date(successMap.updatedAt).toLocaleDateString("mn-MN")} шинэчилсэн</span></div></div>
+      <article className="command-hero map-profile"><div><p className="eyebrow cyan">WORKING PROFILE</p><h3>{plan.profileSummary}</h3><p>Энэ бол таны 5 хариултад суурилсан засварлаж болдог starter profile; зан төлөвийн онош биш.</p><div className="hero-actions"><a className="primary-button" href="/onboarding">Хариулт ба plan засах</a></div></div><div className="progress-orbit map-orbit"><div><strong>{plan.todayAction.minutes}</strong><span>минутын эхний алхам</span></div></div></article>
+      <div className="success-map-grid">
+        <article className="panel map-today"><p className="eyebrow blue">ӨНӨӨДӨР</p><h3>{plan.todayAction.title}</h3><p>{plan.todayAction.detail}</p></article>
+        <article className="panel"><p className="eyebrow blue">ЭНЭ 7 ХОНОГ</p><div className="map-list">{plan.weeklyActions.map((action, index) => <div key={`${action.title}-${index}`}><span>{index + 1}</span><div><strong>{action.title}</strong><p>{action.detail}</p><small>Дууссан гэж үзэх: {action.doneWhen}</small></div></div>)}</div></article>
+        <article className="panel"><p className="eyebrow blue">30 ХОНОГИЙН MANAGEMENT</p><h3>Төвлөрөх 3 зүйл</h3><ul className="map-bullets">{plan.managementPlan.focus.map((item) => <li key={item}>{item}</li>)}</ul><h4>Хэмнэл</h4><ul className="map-bullets muted">{plan.managementPlan.cadence.map((item) => <li key={item}>{item}</li>)}</ul><h4>Хэмжих үзүүлэлт</h4><ul className="map-bullets muted">{plan.managementPlan.measures.map((item) => <li key={item}>{item}</li>)}</ul></article>
+        <article className="panel"><p className="eyebrow blue">CONTENT PLAN</p><h3>7 өдрийн rhythm</h3><div className="content-calendar">{plan.contentPlan.sevenDayPlan.map((item) => <div key={item.day}><strong>{item.day}</strong><span>{item.action}</span></div>)}</div><h4>Контентын чиглэл</h4><div className="pillar-list">{plan.contentPlan.pillars.map((item) => <span key={item}>{item}</span>)}</div></article>
+      </div>
+      <div className="success-map-grid lower">
+        <article className="panel"><p className="eyebrow blue">ACADEMY NEXT</p>{plan.academyRecommendation ? <><h3>{plan.academyRecommendation.title}</h3><p>{plan.academyRecommendation.reason}</p><span className="tag">{plan.academyRecommendation.levelId} · {plan.academyRecommendation.minutes} мин</span></> : <p>Одоогоор дуусаагүй, тохирох нийтлэгдсэн хичээл олдсонгүй.</p>}</article>
+        <article className="panel guard-panel"><div><span className="shield">✓</span><p className="eyebrow cyan">HUMAN CONTROL</p><h3>Төлөвлөгөө автоматаар нийтлэхгүй</h3><p>Контент бүр Source Vault ба хүний review-г дамжина. Орлого, үр дүнгийн баталгаагүй амлалт хийхгүй.</p></div></article>
+      </div>
+    </section>
+  );
 }
 
 function Metric({ label, value, copy, tone }: { label: string; value: string; copy: string; tone: string }) {
