@@ -15,12 +15,13 @@ test("auth redirect accepts only same-origin relative paths", () => {
 });
 
 test("invite-only access gates membership and disables public sign-up", async () => {
-  const [login, signupPage, signupAction, currentUser, config, membershipMigration, inviteMigration, inviteFunction] = await Promise.all([
+  const [login, signupPage, signupAction, currentUser, config, inviteTemplate, membershipMigration, inviteMigration, inviteFunction] = await Promise.all([
     readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/signup/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/signup/actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/current-user.ts", import.meta.url), "utf8"),
     readFile(new URL("../supabase/config.toml", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/templates/invite.html", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260829062550_harden_membership_access.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260915213140_invite_only_success_map_v1.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/functions/invite-member/index.ts", import.meta.url), "utf8"),
@@ -30,6 +31,9 @@ test("invite-only access gates membership and disables public sign-up", async ()
   assert.match(signupPage, /INVITE-ONLY ACCESS/);
   assert.doesNotMatch(signupAction, /auth\.signUp/);
   assert.match(config, /enable_signup = false/);
+  assert.match(inviteTemplate, /token_hash=\{\{ \.TokenHash \}\}/);
+  assert.match(inviteTemplate, /type=invite/);
+  assert.match(inviteTemplate, /\/auth\/confirm/);
   assert.match(currentUser, /team_members/);
   assert.doesNotMatch(currentUser, /metadata\.(role|app_role)|user_metadata.*\["role"\]/);
   assert.match(membershipMigration, /create table if not exists public\.team_members/);

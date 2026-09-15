@@ -21,6 +21,10 @@ enable_signup = false
 double_confirm_changes = true
 enable_confirmations = true
 secure_password_change = false
+
+[auth.email.template.invite]
+subject = "inSuccess-д тавтай морил — урилгаа баталгаажуулна уу"
+content_path = "./supabase/templates/invite.html"
 max_frequency = "1m"
 otp_length = 8
 otp_expiry = 3600
