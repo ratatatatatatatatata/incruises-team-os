@@ -117,8 +117,10 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
       }
       await loadWorkspace();
       setNotice(successMessage);
+      return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Хадгалж чадсангүй");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -143,23 +145,23 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
   async function submitDraft(event: FormEvent) {
     event.preventDefault();
     if (!draftForm.title.trim()) return;
-    await runAction({ action: "create_draft", ...draftForm }, "Ноорог үүслээ. Нийтлэхээс өмнө хяналтад оруулна уу.");
+    if (!await runAction({ action: "create_draft", ...draftForm }, "Ноорог үүслээ. Нийтлэхээс өмнө хяналтад оруулна уу.")) return;
     setDraftForm((current) => ({ ...current, title: "" }));
   }
 
   async function submitMemberTask(event: FormEvent) {
     event.preventDefault();
     if (!memberForm.memberName.trim() || !memberForm.nextAction.trim()) return;
-    await runAction({ action: "add_member_task", ...memberForm }, "Member Success task нэмэгдлээ.");
+    if (!await runAction({ action: "add_member_task", ...memberForm }, "Member Success task нэмэгдлээ.")) return;
     setMemberForm({ memberName: "", milestone: "72 цаг", nextAction: "", dueLabel: "Өнөөдөр", risk: "normal" });
   }
 
   async function submitLesson(event: FormEvent) {
     event.preventDefault();
-    await runAction(
+    if (!await runAction(
       { action: "create_lesson", levelId: selected.id, ...lessonForm, minutes: Number(lessonForm.minutes) },
       "Шинэ хичээл нийтлэгдлээ.",
-    );
+    )) return;
     setLessonForm({ title: "", lessonType: "Хичээл", minutes: "10", content: "" });
   }
 
@@ -422,15 +424,15 @@ function LessonDialog({ lesson, done, isAdmin, saving, onClose, onToggle, onSave
   isAdmin: boolean;
   saving: boolean;
   onClose: () => void;
-  onToggle: () => Promise<void>;
-  onSave: (changes: { title: string; lessonType: string; minutes: number; content: string; isPublished: boolean }) => Promise<void>;
+  onToggle: () => Promise<boolean>;
+  onSave: (changes: { title: string; lessonType: string; minutes: number; content: string; isPublished: boolean }) => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ title: lesson.title, lessonType: lesson.type, minutes: String(lesson.minutes), content: lesson.content, isPublished: lesson.isPublished });
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    await onSave({ ...form, minutes: Number(form.minutes) });
+    if (!await onSave({ ...form, minutes: Number(form.minutes) })) return;
     setEditing(false);
   }
 
@@ -467,7 +469,7 @@ function TeamSupportPanel({ members, notes, saving, onAction }: {
   members: WorkspacePayload["supportMembers"];
   notes: WorkspacePayload["coachNotes"];
   saving: boolean;
-  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
   if (members.length === 0) {
     return <article className="panel"><EmptyState title="Хариуцсан гишүүн алга" copy="Admin урилга илгээхдээ sponsor эсвэл coach оноосны дараа гишүүний явц энд харагдана." /></article>;
@@ -492,7 +494,7 @@ function SupportMemberCard({ member, notes, saving, onAction }: {
   member: WorkspacePayload["supportMembers"][number];
   notes: WorkspacePayload["coachNotes"];
   saving: boolean;
-  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
   const [note, setNote] = useState("");
   const [nextAction, setNextAction] = useState("");
@@ -502,7 +504,7 @@ function SupportMemberCard({ member, notes, saving, onAction }: {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (note.trim().length < 3) return;
-    await onAction({ action: "add_coach_note", memberUserId: member.id, note, nextAction, visibleToMember }, `${member.displayName}-д зөвлөгөө хадгалагдлаа.`);
+    if (!await onAction({ action: "add_coach_note", memberUserId: member.id, note, nextAction, visibleToMember }, `${member.displayName}-д зөвлөгөө хадгалагдлаа.`)) return;
     setNote("");
     setNextAction("");
   }
@@ -551,7 +553,7 @@ function UserDirectory({ users, currentEmail, saving, onUpdate }: {
   users: WorkspacePayload["users"];
   currentEmail: string;
   saving: boolean;
-  onUpdate: (member: WorkspacePayload["users"][number]) => Promise<void>;
+  onUpdate: (member: WorkspacePayload["users"][number]) => Promise<boolean>;
 }) {
   return (
     <section className="section-stack">
@@ -617,7 +619,7 @@ function SuccessMapPanel({ successMap, checkins, coachNotes, saving, onAction }:
   checkins: WorkspacePayload["myCheckins"];
   coachNotes: WorkspacePayload["coachNotes"];
   saving: boolean;
-  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
   if (!successMap) {
     return (
@@ -631,13 +633,15 @@ function SuccessMapPanel({ successMap, checkins, coachNotes, saving, onAction }:
   const plan = successMap.plan;
   return (
     <section className="section-stack success-map-section">
-      <div className="section-intro"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h2>Таны 7/30 хоногийн ажлын зураг</h2><p>{plan.whyThisPlan}</p></div><div className="summary-pill"><strong>{successMap.planSource === "ai_gateway" ? "AI" : "Rule"}</strong><span>{new Date(successMap.updatedAt).toLocaleDateString("mn-MN")} шинэчилсэн</span></div></div>
-      <article className="command-hero map-profile"><div><p className="eyebrow cyan">WORKING PROFILE</p><h3>{plan.profileSummary}</h3><p>Энэ бол таны 5 хариултад суурилсан засварлаж болдог starter profile; зан төлөвийн онош биш.</p><div className="hero-actions"><a className="primary-button" href="/onboarding">Хариулт ба plan засах</a></div></div><div className="progress-orbit map-orbit"><div><strong>{plan.todayAction.minutes}</strong><span>минутын эхний алхам</span></div></div></article>
+      <div className="section-intro"><div><p className="eyebrow cyan">ХУВИЙН АЖЛЫН ЗУРАГ</p><h2>Одоо юу хийх нь нэг хараад ойлгогдоно.</h2><p>{plan.whyThisPlan}</p></div><div className="summary-pill"><strong>{successMap.planSource === "ai_gateway" ? "AI" : "Rule"}</strong><span>{new Date(successMap.updatedAt).toLocaleDateString("mn-MN")} шинэчилсэн</span></div></div>
+      {plan.version < 2 && <article className="plan-upgrade-note"><div><strong>Энэ төлөвлөгөө өмнөх ерөнхий загвараар үүссэн байна.</strong><p>Хариултаа өөрчлөхгүйгээр шинэчилж хадгалахад чиглэлдээ таарсан, дуусах шалгууртай шинэ төлөвлөгөө гарна.</p></div><a className="primary-button" href="/onboarding">Төлөвлөгөөг тодорхой болгох</a></article>}
+      <article className="answer-brief panel"><div className="panel-heading"><div><p className="eyebrow blue">ТАНЫ 5 ХАРИУЛТЫН ТОВЧ</p><h3>Төлөвлөгөө юунд тулгуурласныг эхлээд харна.</h3></div></div><div className="answer-brief-grid"><div><span>Одоогийн нөхцөл</span><strong>{successMap.answers.currentContext}</strong></div><div><span>30 хоногийн хүссэн үр дүн</span><strong>{successMap.answers.goal30Day}</strong></div><div><span>Ажиллах боломжит цаг</span><strong>{successMap.answers.weeklyCapacity}</strong></div><div><span>Гол саад</span><strong>{successMap.answers.primaryBlocker}</strong></div><div><span>Sponsor / coach-оос хэрэгтэй тусламж</span><strong>{successMap.answers.growthPreferences}</strong></div></div></article>
+      <article className="command-hero map-profile"><div><p className="eyebrow cyan">ЯАГААД ЭНЭ ТӨЛӨВЛӨГӨӨ ВЭ?</p><h3>{plan.profileSummary}</h3><p>Энэ бол таны 5 хариултад суурилсан, хүссэн үедээ засварлаж болох ажлын эхлэл; зан төлөвийн онош биш.</p><div className="hero-actions"><a className="primary-button" href="/onboarding">5 хариулт ба төлөвлөгөөг засах</a></div></div><div className="progress-orbit map-orbit"><div><strong>{plan.todayAction.minutes}</strong><span>минутын эхний алхам</span></div></div></article>
       <div className="success-map-grid">
-        <article className="panel map-today"><p className="eyebrow blue">ӨНӨӨДӨР</p><h3>{plan.todayAction.title}</h3><p>{plan.todayAction.detail}</p></article>
-        <article className="panel"><p className="eyebrow blue">ЭНЭ 7 ХОНОГ</p><div className="map-list">{plan.weeklyActions.map((action, index) => <div key={`${action.title}-${index}`}><span>{index + 1}</span><div><strong>{action.title}</strong><p>{action.detail}</p><small>Дууссан гэж үзэх: {action.doneWhen}</small></div></div>)}</div></article>
-        <article className="panel"><p className="eyebrow blue">30 ХОНОГИЙН MANAGEMENT</p><h3>Төвлөрөх 3 зүйл</h3><ul className="map-bullets">{plan.managementPlan.focus.map((item) => <li key={item}>{item}</li>)}</ul><h4>Хэмнэл</h4><ul className="map-bullets muted">{plan.managementPlan.cadence.map((item) => <li key={item}>{item}</li>)}</ul><h4>Хэмжих үзүүлэлт</h4><ul className="map-bullets muted">{plan.managementPlan.measures.map((item) => <li key={item}>{item}</li>)}</ul></article>
-        <article className="panel"><p className="eyebrow blue">CONTENT PLAN</p><h3>7 өдрийн rhythm</h3><div className="content-calendar">{plan.contentPlan.sevenDayPlan.map((item) => <div key={item.day}><strong>{item.day}</strong><span>{item.action}</span></div>)}</div><h4>Контентын чиглэл</h4><div className="pillar-list">{plan.contentPlan.pillars.map((item) => <span key={item}>{item}</span>)}</div></article>
+        <article className="panel map-today"><p className="eyebrow blue">1 · ӨНӨӨДӨР ЭНЭ АЖЛЫГ ХИЙ</p><h3>{plan.todayAction.title}</h3><p>{plan.todayAction.detail}</p></article>
+        <article className="panel"><p className="eyebrow blue">2 · ЭНЭ 7 ХОНОГТ 3 АЖИЛ ДУУСГА</p><div className="map-list">{plan.weeklyActions.map((action, index) => <div key={`${action.title}-${index}`}><span>{index + 1}</span><div><strong>{action.title}</strong><p>{action.detail}</p><small>✓ Дууссан гэж үзэх: {action.doneWhen}</small></div></div>)}</div></article>
+        <article className="panel"><p className="eyebrow blue">3 · 30 ХОНОГИЙН АЖЛЫН ХЭМНЭЛ</p><h3>Төвлөрөх 3 зүйл</h3><ul className="map-bullets">{plan.managementPlan.focus.map((item) => <li key={item}>{item}</li>)}</ul><h4>Хэзээ шалгах вэ?</h4><ul className="map-bullets muted">{plan.managementPlan.cadence.map((item) => <li key={item}>{item}</li>)}</ul><h4>Амжилтыг юугаар хэмжих вэ?</h4><ul className="map-bullets muted">{plan.managementPlan.measures.map((item) => <li key={item}>{item}</li>)}</ul></article>
+        <article className="panel"><p className="eyebrow blue">4 · 7 ӨДРИЙН КОНТЕНТЫН АЛХАМ</p><h3>Өдөр бүр хийх нэг ажил</h3><div className="content-calendar">{plan.contentPlan.sevenDayPlan.map((item) => <div key={item.day}><strong>{item.day}</strong><span>{item.action}</span></div>)}</div><h4>Контентын 3 чиглэл</h4><div className="pillar-list">{plan.contentPlan.pillars.map((item) => <span key={item}>{item}</span>)}</div></article>
       </div>
       <div className="success-map-grid lower">
         <article className="panel"><p className="eyebrow blue">ACADEMY NEXT</p>{plan.academyRecommendation ? <><h3>{plan.academyRecommendation.title}</h3><p>{plan.academyRecommendation.reason}</p><span className="tag">{plan.academyRecommendation.levelId} · {plan.academyRecommendation.minutes} мин</span></> : <p>Одоогоор дуусаагүй, тохирох нийтлэгдсэн хичээл олдсонгүй.</p>}</article>
@@ -652,14 +656,14 @@ function SuccessMapPanel({ successMap, checkins, coachNotes, saving, onAction }:
 function WeeklyCheckinPanel({ checkins, saving, onAction }: {
   checkins: WorkspacePayload["myCheckins"];
   saving: boolean;
-  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
   const [form, setForm] = useState({ progressSummary: "", blocker: "", helpRequest: "", nextFocus: "", progressPercent: "0", needsHelp: false });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (form.progressSummary.trim().length < 3 || form.nextFocus.trim().length < 3) return;
-    await onAction({ ...form, action: "weekly_checkin", progressPercent: Number(form.progressPercent) }, "Долоо хоногийн check-in хадгалагдлаа. Sponsor/coach summary шинэчлэгдэнэ.");
+    if (!await onAction({ ...form, action: "weekly_checkin", progressPercent: Number(form.progressPercent) }, "Долоо хоногийн check-in хадгалагдлаа. Sponsor/coach summary шинэчлэгдэнэ.")) return;
     setForm({ progressSummary: "", blocker: "", helpRequest: "", nextFocus: "", progressPercent: "0", needsHelp: false });
   }
 

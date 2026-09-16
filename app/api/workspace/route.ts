@@ -145,6 +145,13 @@ function serverError(error: unknown) {
   return Response.json({ error: "Workspace service unavailable" }, { status: 500 });
 }
 
+function sameOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  return Boolean(forwardedHost && new URL(origin).host === forwardedHost);
+}
+
 export async function GET() {
   try {
     const { supabase, userId, role } = await authorizedContext();
@@ -383,6 +390,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) {
+    return Response.json({ error: "Хүсэлтийн эх үүсвэр зөвшөөрөгдөөгүй." }, { status: 403 });
+  }
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (contentLength > 32_000) {
+    return Response.json({ error: "Хүсэлтийн хэмжээ хэтэрсэн байна." }, { status: 413 });
+  }
+
   try {
     const { supabase, userId, role } = await authorizedContext();
     const body = (await request.json()) as Record<string, unknown>;
@@ -497,7 +512,8 @@ export async function POST(request: Request) {
       const note = String(body.note ?? "").replace(/\s+/g, " ").trim().slice(0, 1600);
       const nextAction = String(body.nextAction ?? "").replace(/\s+/g, " ").trim().slice(0, 800);
       const visibleToMember = body.visibleToMember !== false;
-      if (!/^[0-9a-f-]{36}$/i.test(memberUserId) || memberUserId === userId || note.length < 3) {
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(memberUserId) || memberUserId === userId || note.length < 3) {
         return Response.json({ error: "Гишүүн болон зөвлөгөөний мэдээллийг зөв оруулна уу." }, { status: 400 });
       }
       const { data: coachNote, error } = await supabase

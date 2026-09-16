@@ -284,6 +284,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .onboarding-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 10px 0 36px; }
 
 .personal-focus { border-top: 3px solid var(--cyan-400); }
+.plan-upgrade-note { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border: 1px solid #efc56f; border-left: 4px solid var(--amber); border-radius: 13px; background: #fff8e9; }
+.plan-upgrade-note strong { color: #65430a; font-size: 14px; }
+.plan-upgrade-note p { margin: 5px 0 0; color: #7c6339; font-size: 11px; line-height: 1.55; }
+.plan-upgrade-note .primary-button { flex: 0 0 auto; }
+.answer-brief { display: grid; gap: 15px; }
+.answer-brief-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.answer-brief-grid > div { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; }
+.answer-brief-grid > div:nth-child(5) { grid-column: 1 / -1; }
+.answer-brief-grid span, .answer-brief-grid strong { display: block; }
+.answer-brief-grid span { color: var(--blue-600); font-size: 9px; font-weight: 850; text-transform: uppercase; letter-spacing: .06em; }
+.answer-brief-grid strong { margin-top: 6px; color: var(--ink); font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
 .map-empty { min-height: 320px; display: grid; place-items: center; align-content: center; gap: 12px; text-align: center; }
 .map-empty .shield { margin: 0; }
 .map-empty h3, .map-empty p { margin: 0; }
@@ -422,6 +433,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .user-directory-row label { grid-column: auto; }
   .relationship-fields { grid-column: 2; grid-template-columns: 1fr 1fr; }
   .weekly-checkin-layout { grid-template-columns: 1fr; }
+  .plan-upgrade-note { align-items: flex-start; flex-direction: column; }
+  .answer-brief-grid { grid-template-columns: 1fr; }
+  .answer-brief-grid > div:nth-child(5) { grid-column: auto; }
   .level-tabs { grid-template-columns: 1fr 1fr; overflow: hidden; }
   .level-tabs button { min-height: 76px; }
   .field-grid { grid-template-columns: 1fr; }
