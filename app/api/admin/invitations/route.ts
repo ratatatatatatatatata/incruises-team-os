@@ -7,6 +7,9 @@ const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(320),
   displayName: z.string().trim().min(1).max(80),
   role: z.enum(["user", "builder", "coach", "director"]),
+  sponsorUserId: z.string().uuid().nullable(),
+  coachUserId: z.string().uuid().nullable(),
+  teamName: z.string().trim().min(1).max(80),
 }).strict();
 
 function response(body: Record<string, unknown>, status = 200) {
@@ -31,7 +34,7 @@ export async function GET() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("member_invitations")
-    .select("id,email,display_name,role,status,invited_at,expires_at,accepted_at")
+    .select("id,email,display_name,role,status,invited_at,expires_at,accepted_at,sponsor_user_id,coach_user_id,team_name")
     .order("invited_at", { ascending: false })
     .limit(50);
   if (error) return response({ error: "Урилгын жагсаалтыг уншиж чадсангүй." }, 503);

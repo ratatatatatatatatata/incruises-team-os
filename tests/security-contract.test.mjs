@@ -71,6 +71,38 @@ test("starter map uses exactly five private answers with explicit AI consent", a
   assert.doesNotMatch(ai, /email|userId/);
 });
 
+test("sponsor and coach operations expose only purpose-limited summaries", async () => {
+  const [migration, inviteFunction, inviteRoute, workspaceRoute, onboarding, app] = await Promise.all([
+    readFile(new URL("../supabase/migrations/20260916170145_sponsor_team_success_operations.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/functions/invite-member/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/invitations/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/onboarding/onboarding-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/team-os-app.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(migration, /create table if not exists public\.member_relationships/);
+  assert.match(migration, /create table if not exists public\.member_success_summaries/);
+  assert.match(migration, /create table if not exists public\.member_checkins/);
+  assert.match(migration, /create table if not exists public\.coach_notes/);
+  assert.match(migration, /alter table public\.member_relationships enable row level security/);
+  assert.match(migration, /alter table public\.member_success_summaries enable row level security/);
+  assert.match(migration, /create or replace function private\.current_user_can_support_member/);
+  assert.match(migration, /revoke all on table public\.member_success_summaries from anon, authenticated/);
+  assert.doesNotMatch(migration, /grant (insert|update|delete).*member_success_summaries.*authenticated/i);
+  assert.doesNotMatch(migration, /delete from|truncate table|drop table/i);
+  assert.match(inviteFunction, /sponsor_user_id/);
+  assert.match(inviteFunction, /coach_user_id/);
+  assert.match(inviteFunction, /SPONSOR_ROLES/);
+  assert.match(inviteRoute, /sponsorUserId/);
+  assert.match(workspaceRoute, /member_success_summaries/);
+  assert.match(workspaceRoute, /weekly_checkin/);
+  assert.match(workspaceRoute, /add_coach_note/);
+  assert.match(onboarding, /purpose-limited summary/);
+  assert.match(onboarding, /\/auth\/signout/);
+  assert.match(app, /Түүхий 5 хариулт харагдахгүй/);
+});
+
 test("production accepts Vercel Marketplace Supabase environment names", async () => {
   const [supabaseConfig, nextConfig] = await Promise.all([
     readFile(new URL("../lib/supabase/config.ts", import.meta.url), "utf8"),

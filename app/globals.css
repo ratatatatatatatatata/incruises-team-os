@@ -345,6 +345,47 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-message.error { border-color: var(--red); background: rgba(223,91,91,.12); color: #ffc2c2; }
 .auth-message.success { border-color: var(--green); background: rgba(26,169,122,.12); color: #a9f0d5; }
 
+.onboarding-privacy { margin-top: 12px !important; padding: 12px 14px; border: 1px solid rgba(116,224,235,.2); border-radius: 10px; background: rgba(116,224,235,.06); font-size: 12px; }
+.onboarding-header > form { margin-top: 12px; }
+.onboarding-header > form .text-button { padding: 0; color: var(--cyan-400); }
+.relationship-fields { grid-column: 3 / -1; display: grid; grid-template-columns: repeat(5, minmax(120px,1fr)); gap: 10px; align-items: end; }
+.relationship-fields input, .relationship-fields select { width: 100%; min-height: 38px; padding: 7px 9px; border: 1px solid #ced8e5; border-radius: 8px; background: white; color: var(--ink); font-size: 11px; }
+.support-member-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.support-member-card { display: grid; gap: 18px; }
+.support-member-header { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 12px; align-items: center; }
+.support-member-header h3 { margin: 0; font-size: 19px; }
+.support-member-header p, .support-member-header small { display: block; margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+.support-state { padding: 7px 9px; border-radius: 999px; background: #edf3f8; color: #526579; font-size: 9px; font-weight: 850; white-space: nowrap; }
+.support-state.normal { background: rgba(26,169,122,.11); color: #117352; }
+.support-state.attention, .support-state.onboarding { background: rgba(239,172,41,.14); color: #916100; }
+.support-state.urgent { background: rgba(230,77,77,.12); color: #a22626; }
+.support-summary { display: grid; gap: 10px; }
+.support-summary > div { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfe; }
+.support-summary span, .latest-checkin span { display: block; color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.support-summary strong { display: block; margin-top: 5px; color: var(--ink); font-size: 12px; line-height: 1.5; }
+.latest-checkin { padding: 14px; display: grid; gap: 7px; border-radius: 12px; background: #f0f7ff; }
+.latest-checkin > div { display: flex; gap: 8px; align-items: baseline; }
+.latest-checkin > div strong { color: var(--blue-600); font-size: 24px; }
+.latest-checkin p, .latest-checkin small { margin: 0; line-height: 1.5; }
+.coach-note-form { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.coach-note-form label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 800; }
+.coach-note-form textarea, .coach-note-form input { width: 100%; min-height: 42px; padding: 10px; border: 1px solid #ced8e5; border-radius: 9px; background: #fbfcfe; color: var(--ink); font: inherit; }
+.coach-note-form textarea { min-height: 82px; resize: vertical; }
+.check-row { grid-template-columns: auto 1fr !important; align-items: center; }
+.check-row input { width: 18px; min-height: 18px; }
+.coach-note-list, .member-coach-notes { display: grid; gap: 10px; }
+.coach-note-list > div, .member-coach-notes > div { padding: 12px; border-left: 3px solid var(--cyan-400); background: #f8fbfd; }
+.coach-note-list p, .member-coach-notes p { margin: 4px 0; line-height: 1.55; }
+.coach-note-list small, .member-coach-notes small { color: var(--muted); }
+.privacy-note, .muted-copy { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.weekly-checkin-layout { display: grid; grid-template-columns: minmax(320px,.8fr) minmax(0,1.2fr); gap: 18px; align-items: start; }
+.weekly-checkin-layout input[type="range"] { width: 100%; }
+.checkin-history { display: grid; gap: 12px; }
+.checkin-row { padding: 13px 0; border-top: 1px solid var(--line); }
+.checkin-row:first-of-type { border-top: 0; }
+.checkin-row p { margin: 5px 0; line-height: 1.55; }
+.checkin-row small { color: var(--muted); }
+
 @media (max-width: 1100px) {
   .app-shell { grid-template-columns: 210px minmax(0,1fr); }
   .sidebar { padding-inline: 14px; }
@@ -352,6 +393,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .command-hero { grid-template-columns: 1fr 180px; }
   .progress-orbit { width: 152px; height: 152px; }
   .metric-grid { grid-template-columns: repeat(2,1fr); }
+  .support-member-grid { grid-template-columns: 1fr; }
   .vault-grid { grid-template-columns: repeat(2,1fr); }
   .level-tabs { grid-template-columns: repeat(3,1fr); }
   .level-tabs button { border-bottom: 1px solid var(--line); }
@@ -377,7 +419,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .metric-grid, .overview-grid, .academy-layout, .content-layout, .member-layout, .success-map-grid, .success-map-grid.lower { grid-template-columns: 1fr; }
   .invitation-form { grid-template-columns: 1fr 1fr; }
   .user-directory-row { grid-template-columns: 42px minmax(0,1fr); }
-  .user-directory-row label { grid-column: 2; }
+  .user-directory-row label { grid-column: auto; }
+  .relationship-fields { grid-column: 2; grid-template-columns: 1fr 1fr; }
+  .weekly-checkin-layout { grid-template-columns: 1fr; }
   .level-tabs { grid-template-columns: 1fr 1fr; overflow: hidden; }
   .level-tabs button { min-height: 76px; }
   .field-grid { grid-template-columns: 1fr; }
@@ -459,6 +503,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .ai-consent-card { padding: 18px 16px; }
   .onboarding-actions { display: grid; }
   .invitation-form { grid-template-columns: 1fr; }
+  .relationship-fields { grid-template-columns: 1fr; }
+  .support-member-header { grid-template-columns: 38px minmax(0,1fr); }
+  .support-state { grid-column: 2; justify-self: start; }
   .invitation-row { align-items: flex-start; }
   .content-calendar > div { grid-template-columns: 1fr; gap: 4px; }
 }

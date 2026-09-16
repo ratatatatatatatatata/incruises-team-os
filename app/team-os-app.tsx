@@ -8,12 +8,15 @@ import { AdminInvitations } from "./admin-invitations";
 type Section = "overview" | "my-path" | "academy" | "content" | "members" | "vault" | "users";
 
 const emptyWorkspace: WorkspacePayload = {
-  viewer: { role: "user", canReview: false, canRecordCorporateApproval: false },
+  viewer: { userId: "", role: "user", canReview: false, canRecordCorporateApproval: false },
   progress: [],
   lessons: [],
   drafts: [],
   memberTasks: [],
   users: [],
+  supportMembers: [],
+  myCheckins: [],
+  coachNotes: [],
   successMap: null,
 };
 
@@ -22,7 +25,7 @@ const navItems: Array<{ id: Section; label: string; short: string; symbol: strin
   { id: "my-path", label: "Миний зам", short: "Зам", symbol: "◉" },
   { id: "academy", label: "Academy", short: "Academy", symbol: "▤" },
   { id: "content", label: "Content Studio", short: "Контент", symbol: "✦" },
-  { id: "members", label: "Member Success", short: "Members", symbol: "◎" },
+  { id: "members", label: "Багийн дэмжлэг", short: "Баг", symbol: "◎" },
   { id: "vault", label: "Source Vault", short: "Vault", symbol: "◇" },
   { id: "users", label: "Хэрэглэгчид", short: "Users", symbol: "♙" },
 ];
@@ -45,7 +48,9 @@ async function fetchWorkspace(): Promise<WorkspacePayload> {
 
 export function TeamOsApp({ user, initialSection }: { user: { name: string; email: string; role: string }; initialSection?: string }) {
   const [section, setSection] = useState<Section>(() => {
-    const allowed = navItems.some((item) => item.id === initialSection) && (initialSection !== "users" || user.role === "admin");
+    const allowed = navItems.some((item) => item.id === initialSection)
+      && (initialSection !== "users" || user.role === "admin")
+      && (initialSection !== "members" || user.role !== "user");
     return allowed ? initialSection as Section : "overview";
   });
   const [workspace, setWorkspace] = useState<WorkspacePayload>(emptyWorkspace);
@@ -62,7 +67,11 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
     sourceId: string;
   }>({ title: "", channel: "Facebook", sourceId: officialSources[0].id });
   const [memberForm, setMemberForm] = useState({ memberName: "", milestone: "72 цаг", nextAction: "", dueLabel: "Өнөөдөр", risk: "normal" });
-  const visibleNavItems = user.role === "admin" ? navItems : navItems.filter((item) => item.id !== "users");
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.id === "users") return user.role === "admin";
+    if (item.id === "members") return user.role !== "user";
+    return true;
+  });
 
   const loadWorkspace = useCallback(async () => {
     try {
@@ -204,7 +213,13 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
           )}
 
           {section === "my-path" && (
-            <SuccessMapPanel successMap={workspace.successMap} />
+            <SuccessMapPanel
+              successMap={workspace.successMap}
+              checkins={workspace.myCheckins}
+              coachNotes={workspace.coachNotes.filter((note) => note.memberUserId === workspace.viewer.userId)}
+              saving={saving}
+              onAction={runAction}
+            />
           )}
 
           {section === "academy" && (
@@ -335,11 +350,12 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
 
           {section === "members" && (
             <section className="section-stack">
-              <div className="section-intro"><div><p className="eyebrow blue">SERVICE BEFORE RECRUITMENT</p><h2>Хүн бүр дараагийн зөв алхмаа мэддэг.</h2><p>72 цаг, 30/60/90 хоногийн touchpoint бүр эзэн, хугацаа, үр дүнтэй байна.</p></div><div className="summary-pill"><strong>{pendingMemberTasks.length}</strong><span>нээлттэй task</span></div></div>
+              <div className="section-intro"><div><p className="eyebrow blue">SPONSOR · COACH CONTROL</p><h2>Хэн хэний багт, юун дээр тусламж хэрэгтэйг нэг дор харна.</h2><p>Зөвхөн танд хуваарилагдсан гишүүний coaching summary, weekly check-in, blocker болон тусламжийн хүсэлт харагдана.</p></div><div className="summary-pill"><strong>{workspace.supportMembers.length}</strong><span>хариуцсан хүн</span></div></div>
+              <TeamSupportPanel members={workspace.supportMembers} notes={workspace.coachNotes} saving={saving} onAction={runAction} />
               <div className="lifecycle"><div><b>0–72 цаг</b><span>Welcome + зорилго</span></div><div><b>30 хоног</b><span>Readiness + blocker</span></div><div><b>60 хоног</b><span>Value review</span></div><div><b>90 хоног</b><span>Next plan</span></div></div>
               <div className="member-layout">
                 <form className="panel form-panel" onSubmit={submitMemberTask}>
-                  <p className="eyebrow blue">ADD NEXT ACTION</p><h3>Member Success task</h3>
+                  <p className="eyebrow blue">MANUAL FOLLOW-UP</p><h3>Нэмэлт Success task</h3>
                   <label>Гишүүний нэр<input value={memberForm.memberName} onChange={(event) => setMemberForm({ ...memberForm, memberName: event.target.value })} placeholder="Нэр" maxLength={80} /></label>
                   <div className="field-grid"><label>Үе шат<select value={memberForm.milestone} onChange={(event) => setMemberForm({ ...memberForm, milestone: event.target.value })}><option>72 цаг</option><option>30 хоног</option><option>60 хоног</option><option>90 хоног</option></select></label><label>Эрсдэл<select value={memberForm.risk} onChange={(event) => setMemberForm({ ...memberForm, risk: event.target.value })}><option value="normal">Хэвийн</option><option value="attention">Анхаарах</option><option value="urgent">Яаралтай</option></select></label></div>
                   <label>Дараагийн алхам<textarea value={memberForm.nextAction} onChange={(event) => setMemberForm({ ...memberForm, nextAction: event.target.value })} placeholder="Жишээ: Аяллын зорилгыг тодруулж, FAQ илгээх" maxLength={180} /></label>
@@ -367,7 +383,15 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
               users={workspace.users}
               currentEmail={user.email}
               saving={saving}
-              onUpdate={(userId, role, status) => runAction({ action: "update_user", userId, role, status }, "Хэрэглэгчийн эрх шинэчлэгдлээ.")}
+              onUpdate={(member) => runAction({
+                action: "update_user",
+                userId: member.id,
+                role: member.role,
+                status: member.status,
+                sponsorUserId: member.sponsorUserId,
+                coachUserId: member.coachUserId,
+                teamName: member.teamName,
+              }, "Хэрэглэгчийн эрх ба багийн холбоо шинэчлэгдлээ.")}
             />
           )}
         </div>
@@ -439,11 +463,95 @@ function LessonDialog({ lesson, done, isAdmin, saving, onClose, onToggle, onSave
   );
 }
 
+function TeamSupportPanel({ members, notes, saving, onAction }: {
+  members: WorkspacePayload["supportMembers"];
+  notes: WorkspacePayload["coachNotes"];
+  saving: boolean;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+}) {
+  if (members.length === 0) {
+    return <article className="panel"><EmptyState title="Хариуцсан гишүүн алга" copy="Admin урилга илгээхдээ sponsor эсвэл coach оноосны дараа гишүүний явц энд харагдана." /></article>;
+  }
+
+  return (
+    <div className="support-member-grid">
+      {members.map((member) => (
+        <SupportMemberCard
+          key={member.id}
+          member={member}
+          notes={notes.filter((note) => note.memberUserId === member.id)}
+          saving={saving}
+          onAction={onAction}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SupportMemberCard({ member, notes, saving, onAction }: {
+  member: WorkspacePayload["supportMembers"][number];
+  notes: WorkspacePayload["coachNotes"];
+  saving: boolean;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+}) {
+  const [note, setNote] = useState("");
+  const [nextAction, setNextAction] = useState("");
+  const [visibleToMember, setVisibleToMember] = useState(true);
+  const attention = member.onboardingRequired ? "onboarding" : member.latestCheckin?.needsHelp ? "urgent" : member.latestCheckin ? "normal" : "attention";
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (note.trim().length < 3) return;
+    await onAction({ action: "add_coach_note", memberUserId: member.id, note, nextAction, visibleToMember }, `${member.displayName}-д зөвлөгөө хадгалагдлаа.`);
+    setNote("");
+    setNextAction("");
+  }
+
+  return (
+    <article className="panel support-member-card">
+      <header className="support-member-header">
+        <div className="user-avatar">{member.displayName.charAt(0).toUpperCase()}</div>
+        <div><h3>{member.displayName}</h3><p>{member.teamName} · {member.role}</p><small>Sponsor: {member.sponsorName ?? "оноогоогүй"} · Coach: {member.coachName ?? "оноогоогүй"}</small></div>
+        <span className={`support-state ${attention}`}>{member.onboardingRequired ? "Onboarding" : member.latestCheckin?.needsHelp ? "Тусламж хүссэн" : member.latestCheckin ? "Явцтай" : "Check-in хүлээж байна"}</span>
+      </header>
+
+      {member.summary ? (
+        <div className="support-summary">
+          <div><span>30 хоногийн зорилго</span><strong>{member.summary.goal30Day}</strong></div>
+          <div><span>Ойлгохгүй / гацсан зүйл</span><strong>{member.summary.primaryBlocker}</strong></div>
+          <div><span>Хэрэгтэй тусламж</span><strong>{member.summary.supportNeeds}</strong></div>
+          <div><span>Одоогийн дараагийн алхам</span><strong>{member.summary.todayAction}</strong></div>
+        </div>
+      ) : <p className="muted-copy">5 асуултын onboarding дуусмагц coaching summary энд автоматаар гарна.</p>}
+
+      {member.latestCheckin && (
+        <div className="latest-checkin">
+          <div><strong>{member.latestCheckin.progressPercent}%</strong><span>сүүлийн явц</span></div>
+          <p>{member.latestCheckin.progressSummary}</p>
+          {member.latestCheckin.blocker && <small>Саад: {member.latestCheckin.blocker}</small>}
+          {member.latestCheckin.helpRequest && <small>Тусламж: {member.latestCheckin.helpRequest}</small>}
+          <small>Дараагийн focus: {member.latestCheckin.nextFocus}</small>
+        </div>
+      )}
+
+      <form className="coach-note-form" onSubmit={submit}>
+        <label>Зөвлөгөө<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1600} placeholder="Юуг ойлгуулах, юун дээр дэмжих вэ?" required /></label>
+        <label>Дараагийн алхам<input value={nextAction} onChange={(event) => setNextAction(event.target.value)} maxLength={800} placeholder="Жишээ: L1 хичээлийг үзээд 15 минут ярилцах" /></label>
+        <label className="check-row"><input type="checkbox" checked={visibleToMember} onChange={(event) => setVisibleToMember(event.target.checked)} /> Гишүүнд харагдана</label>
+        <button className="secondary-button" type="submit" disabled={saving || note.trim().length < 3}>Зөвлөгөө хадгалах</button>
+      </form>
+
+      {notes.length > 0 && <div className="coach-note-list">{notes.slice(0, 3).map((item) => <div key={item.id}><strong>{item.authorName}</strong><p>{item.note}</p>{item.nextAction && <small>Дараагийн алхам: {item.nextAction}</small>}</div>)}</div>}
+      <p className="privacy-note">Түүхий 5 хариулт харагдахгүй. Зөвхөн coaching-д хэрэгтэй summary, check-in ба тусламжийн хүсэлт харагдана.</p>
+    </article>
+  );
+}
+
 function UserDirectory({ users, currentEmail, saving, onUpdate }: {
   users: WorkspacePayload["users"];
   currentEmail: string;
   saving: boolean;
-  onUpdate: (userId: string, role: WorkspacePayload["users"][number]["role"], status: WorkspacePayload["users"][number]["status"]) => Promise<void>;
+  onUpdate: (member: WorkspacePayload["users"][number]) => Promise<void>;
 }) {
   return (
     <section className="section-stack">
@@ -451,16 +559,23 @@ function UserDirectory({ users, currentEmail, saving, onUpdate }: {
         <div><p className="eyebrow blue">USER MANAGEMENT</p><h2>Урилга ба хэрэглэгчийн эрх</h2><p>Админ имэйл урилга илгээж, бүртгэлтэй хэрэглэгчийн эрх болон төлөвийг удирдана.</p></div>
         <div className="summary-pill"><strong>{users.length}</strong><span>нийт хэрэглэгч</span></div>
       </div>
-      <AdminInvitations />
+      <AdminInvitations users={users} />
       <article className="panel user-directory">
         {users.length === 0 ? <EmptyState title="Хэрэглэгч алга" copy="Эхний хэрэглэгч бүртгүүлсний дараа энд харагдана." /> : users.map((item) => {
           const isCurrent = item.email === currentEmail;
+          const sponsorOptions = users.filter((candidate) => candidate.id !== item.id && candidate.status === "active" && ["builder", "coach", "director", "admin"].includes(candidate.role));
+          const coachOptions = users.filter((candidate) => candidate.id !== item.id && candidate.status === "active" && ["coach", "director", "admin"].includes(candidate.role));
           return (
             <div className="user-directory-row" key={item.id}>
               <div className="user-avatar">{item.displayName.charAt(0).toUpperCase()}</div>
               <div className="user-identity"><strong>{item.displayName}</strong><span>{item.email}</span><small>{new Date(item.createdAt).toLocaleDateString("mn-MN")}{isCurrent ? " · Та" : ""}</small></div>
-              <label>Эрх<select value={item.role} disabled={saving || isCurrent} onChange={(event) => void onUpdate(item.id, event.target.value as typeof item.role, item.status)}><option value="user">Хэрэглэгч</option><option value="builder">Builder</option><option value="coach">Coach</option><option value="director">Director</option><option value="admin">Admin</option></select></label>
-              <label>Төлөв<select value={item.status} disabled={saving || isCurrent} onChange={(event) => void onUpdate(item.id, item.role, event.target.value as typeof item.status)}><option value="active">Идэвхтэй</option><option value="disabled">Идэвхгүй</option></select></label>
+              <div className="relationship-fields">
+                <label>Эрх<select value={item.role} disabled={saving || isCurrent} onChange={(event) => void onUpdate({ ...item, role: event.target.value as typeof item.role })}><option value="user">Хэрэглэгч</option><option value="builder">Builder</option><option value="coach">Coach</option><option value="director">Director</option><option value="admin">Admin</option></select></label>
+                <label>Төлөв<select value={item.status} disabled={saving || isCurrent} onChange={(event) => void onUpdate({ ...item, status: event.target.value as typeof item.status })}><option value="active">Идэвхтэй</option><option value="disabled">Идэвхгүй</option></select></label>
+                <label>Баг<input defaultValue={item.teamName} disabled={saving || isCurrent} maxLength={80} onBlur={(event) => { const teamName = event.target.value.trim(); if (teamName && teamName !== item.teamName) void onUpdate({ ...item, teamName }); }} /></label>
+                <label>Sponsor<select value={item.sponsorUserId ?? ""} disabled={saving || isCurrent} onChange={(event) => void onUpdate({ ...item, sponsorUserId: event.target.value || null })}><option value="">Оноогоогүй</option>{sponsorOptions.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.displayName} · {candidate.role}</option>)}</select></label>
+                <label>Coach<select value={item.coachUserId ?? ""} disabled={saving || isCurrent} onChange={(event) => void onUpdate({ ...item, coachUserId: event.target.value || null })}><option value="">Оноогоогүй</option>{coachOptions.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.displayName} · {candidate.role}</option>)}</select></label>
+              </div>
             </div>
           );
         })}
@@ -497,7 +612,13 @@ function Overview({ progressPercent, completed, total, pendingTasks, drafts, suc
   </section>;
 }
 
-function SuccessMapPanel({ successMap }: { successMap: WorkspacePayload["successMap"] }) {
+function SuccessMapPanel({ successMap, checkins, coachNotes, saving, onAction }: {
+  successMap: WorkspacePayload["successMap"];
+  checkins: WorkspacePayload["myCheckins"];
+  coachNotes: WorkspacePayload["coachNotes"];
+  saving: boolean;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+}) {
   if (!successMap) {
     return (
       <section className="section-stack">
@@ -522,7 +643,40 @@ function SuccessMapPanel({ successMap }: { successMap: WorkspacePayload["success
         <article className="panel"><p className="eyebrow blue">ACADEMY NEXT</p>{plan.academyRecommendation ? <><h3>{plan.academyRecommendation.title}</h3><p>{plan.academyRecommendation.reason}</p><span className="tag">{plan.academyRecommendation.levelId} · {plan.academyRecommendation.minutes} мин</span></> : <p>Одоогоор дуусаагүй, тохирох нийтлэгдсэн хичээл олдсонгүй.</p>}</article>
         <article className="panel guard-panel"><div><span className="shield">✓</span><p className="eyebrow cyan">HUMAN CONTROL</p><h3>Төлөвлөгөө автоматаар нийтлэхгүй</h3><p>Контент бүр Source Vault ба хүний review-г дамжина. Орлого, үр дүнгийн баталгаагүй амлалт хийхгүй.</p></div></article>
       </div>
+      <WeeklyCheckinPanel checkins={checkins} saving={saving} onAction={onAction} />
+      {coachNotes.length > 0 && <article className="panel member-coach-notes"><p className="eyebrow blue">SPONSOR / COACH ЗӨВЛӨГӨӨ</p><h3>Танд өгсөн дараагийн зөвлөмж</h3>{coachNotes.map((note) => <div key={note.id}><strong>{note.authorName}</strong><p>{note.note}</p>{note.nextAction && <small>Дараагийн алхам: {note.nextAction}</small>}</div>)}</article>}
     </section>
+  );
+}
+
+function WeeklyCheckinPanel({ checkins, saving, onAction }: {
+  checkins: WorkspacePayload["myCheckins"];
+  saving: boolean;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<void>;
+}) {
+  const [form, setForm] = useState({ progressSummary: "", blocker: "", helpRequest: "", nextFocus: "", progressPercent: "0", needsHelp: false });
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (form.progressSummary.trim().length < 3 || form.nextFocus.trim().length < 3) return;
+    await onAction({ ...form, action: "weekly_checkin", progressPercent: Number(form.progressPercent) }, "Долоо хоногийн check-in хадгалагдлаа. Sponsor/coach summary шинэчлэгдэнэ.");
+    setForm({ progressSummary: "", blocker: "", helpRequest: "", nextFocus: "", progressPercent: "0", needsHelp: false });
+  }
+
+  return (
+    <div className="weekly-checkin-layout">
+      <form className="panel form-panel" onSubmit={submit}>
+        <p className="eyebrow blue">WEEKLY FEEDBACK LOOP</p><h3>Энэ долоо хоногийн check-in</h3>
+        <label>Юу хийж, ямар үр дүн гаргав?<textarea value={form.progressSummary} onChange={(event) => setForm({ ...form, progressSummary: event.target.value })} maxLength={1200} required /></label>
+        <label>Юун дээр гацав?<textarea value={form.blocker} onChange={(event) => setForm({ ...form, blocker: event.target.value })} maxLength={1200} /></label>
+        <label>Ямар тусламж хэрэгтэй вэ?<textarea value={form.helpRequest} onChange={(event) => setForm({ ...form, helpRequest: event.target.value })} maxLength={1200} /></label>
+        <label>Дараагийн долоо хоногийн гол focus<textarea value={form.nextFocus} onChange={(event) => setForm({ ...form, nextFocus: event.target.value })} maxLength={1200} required /></label>
+        <label>Зорилгын явц · {form.progressPercent}%<input type="range" min="0" max="100" step="5" value={form.progressPercent} onChange={(event) => setForm({ ...form, progressPercent: event.target.value })} /></label>
+        <label className="check-row"><input type="checkbox" checked={form.needsHelp} onChange={(event) => setForm({ ...form, needsHelp: event.target.checked })} /> Sponsor/coach-ийн тусламж одоо хэрэгтэй</label>
+        <button className="primary-button" type="submit" disabled={saving || form.progressSummary.trim().length < 3 || form.nextFocus.trim().length < 3}>Check-in хадгалах</button>
+      </form>
+      <article className="panel checkin-history"><div className="panel-heading"><div><p className="eyebrow blue">CHECK-IN HISTORY</p><h3>Сүүлийн явц</h3></div><span className="count-badge">{checkins.length}</span></div>{checkins.length === 0 ? <EmptyState title="Check-in алга" copy="Эхний долоо хоногийн үр дүнгээ хадгалсны дараа энд түүх үүснэ." /> : checkins.slice(0, 6).map((checkin) => <div className="checkin-row" key={checkin.id}><strong>{checkin.progressPercent}% · {new Date(checkin.createdAt).toLocaleDateString("mn-MN")}</strong><p>{checkin.progressSummary}</p><small>{checkin.needsHelp ? "Тусламж хүссэн" : "Дараагийн focus"}: {checkin.needsHelp ? checkin.helpRequest || checkin.blocker : checkin.nextFocus}</small></div>)}</article>
+    </div>
   );
 }
 

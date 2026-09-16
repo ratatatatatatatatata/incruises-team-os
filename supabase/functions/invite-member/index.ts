@@ -1,7 +1,10 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const ALLOWED_ROLES = new Set(["user", "builder", "coach", "director"]);
+const SPONSOR_ROLES = new Set(["builder", "coach", "director", "admin"]);
+const COACH_ROLES = new Set(["coach", "director", "admin"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -47,8 +50,35 @@ Deno.serve(async (request) => {
   const email = String(rawBody?.email ?? "").trim().toLowerCase();
   const displayName = String(rawBody?.displayName ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   const role = String(rawBody?.role ?? "user");
-  if (!EMAIL_PATTERN.test(email) || email.length > 320 || !displayName || !ALLOWED_ROLES.has(role)) {
+  const sponsorUserId = rawBody?.sponsorUserId ? String(rawBody.sponsorUserId) : userData.user.id;
+  const coachUserId = rawBody?.coachUserId ? String(rawBody.coachUserId) : null;
+  const teamName = String(rawBody?.teamName ?? "inSuccess Team").replace(/\s+/g, " ").trim().slice(0, 80);
+  if (
+    !EMAIL_PATTERN.test(email)
+    || email.length > 320
+    || !displayName
+    || !ALLOWED_ROLES.has(role)
+    || !UUID_PATTERN.test(sponsorUserId)
+    || (coachUserId !== null && !UUID_PATTERN.test(coachUserId))
+    || !teamName
+  ) {
     return json({ error: "Урилгын мэдээлэл буруу байна." }, 400);
+  }
+
+  const relationshipIds = [...new Set([sponsorUserId, coachUserId].filter((value): value is string => Boolean(value)))];
+  const { data: relationshipMembers, error: relationshipError } = await adminClient
+    .from("team_members")
+    .select("user_id,role,status")
+    .in("user_id", relationshipIds);
+  if (relationshipError) return json({ error: "Sponsor болон coach эрхийг шалгаж чадсангүй." }, 503);
+  const relationshipById = new Map((relationshipMembers ?? []).map((member) => [member.user_id, member]));
+  const sponsor = relationshipById.get(sponsorUserId);
+  const coach = coachUserId ? relationshipById.get(coachUserId) : null;
+  if (!sponsor || sponsor.status !== "active" || !SPONSOR_ROLES.has(sponsor.role)) {
+    return json({ error: "Идэвхтэй sponsor сонгоно уу." }, 400);
+  }
+  if (coachUserId && (!coach || coach.status !== "active" || !COACH_ROLES.has(coach.role))) {
+    return json({ error: "Coach эрхтэй идэвхтэй хэрэглэгч сонгоно уу." }, 400);
   }
 
   const { data: existingMember } = await adminClient
@@ -72,6 +102,9 @@ Deno.serve(async (request) => {
     email,
     display_name: displayName,
     role,
+    sponsor_user_id: sponsorUserId,
+    coach_user_id: coachUserId,
+    team_name: teamName,
     status: "pending",
     invited_by: userData.user.id,
     invited_at: new Date().toISOString(),

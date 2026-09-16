@@ -121,6 +121,7 @@ export const officialSources = [
 
 export type WorkspacePayload = {
   viewer: {
+    userId: string;
     role: "user" | "builder" | "coach" | "director" | "admin";
     canReview: boolean;
     canRecordCorporateApproval: boolean;
@@ -164,6 +165,56 @@ export type WorkspacePayload = {
     displayName: string;
     role: "user" | "builder" | "coach" | "director" | "admin";
     status: "active" | "disabled";
+    createdAt: string;
+    sponsorUserId: string | null;
+    coachUserId: string | null;
+    teamName: string;
+  }>;
+  supportMembers: Array<{
+    id: string;
+    email: string;
+    displayName: string;
+    role: "user" | "builder" | "coach" | "director" | "admin";
+    teamName: string;
+    sponsorName: string | null;
+    coachName: string | null;
+    onboardingRequired: boolean;
+    summary: {
+      goal30Day: string;
+      weeklyCapacity: string;
+      primaryBlocker: string;
+      supportNeeds: string;
+      todayAction: string;
+      updatedAt: string;
+    } | null;
+    latestCheckin: {
+      progressSummary: string;
+      blocker: string;
+      helpRequest: string;
+      nextFocus: string;
+      progressPercent: number;
+      needsHelp: boolean;
+      createdAt: string;
+    } | null;
+  }>;
+  myCheckins: Array<{
+    id: number;
+    progressSummary: string;
+    blocker: string;
+    helpRequest: string;
+    nextFocus: string;
+    progressPercent: number;
+    needsHelp: boolean;
+    createdAt: string;
+  }>;
+  coachNotes: Array<{
+    id: number;
+    memberUserId: string;
+    authorUserId: string;
+    authorName: string;
+    note: string;
+    nextAction: string;
+    visibleToMember: boolean;
     createdAt: string;
   }>;
   successMap: StoredSuccessMap | null;

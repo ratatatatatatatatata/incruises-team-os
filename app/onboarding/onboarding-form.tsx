@@ -42,16 +42,16 @@ const QUESTIONS: Array<{
   },
   {
     key: "primaryBlocker",
-    title: "4. Одоогийн хамгийн том саад юу вэ, өмнө нь юуг туршсан бэ?",
-    helper: "Хугацаа, ур чадвар, систем, контент, баг зэрэг бодит саадыг хэлнэ үү.",
-    placeholder: "Жишээ: Follow-up тогтмол хийж чаддаггүй, calendar ашиглаж үзсэн...",
+    title: "4. Одоогоор юуг сайн ойлгохгүй байна, юун дээр гацаж байна, өмнө нь юуг туршсан бэ?",
+    helper: "Бүтээгдэхүүн, discovery, follow-up, хугацаа, систем, контент эсвэл багийн бодит саадыг хэлнэ үү.",
+    placeholder: "Жишээ: Follow-up-ийн дарааллыг сайн ойлгохгүй, calendar ашиглаж үзсэн...",
     min: 10,
   },
   {
     key: "growthPreferences",
-    title: "5. Контент ба management-д танд яг ямар тусламж хэрэгтэй вэ?",
-    helper: "Үзэгч, ашиглах суваг, багийн нөхцөл, хүссэн зөвлөгөөний хэв маягаа хамтад нь бичнэ үү.",
-    placeholder: "Жишээ: Facebook-д шинэ хэрэглэгчдэд зориулсан контент, багтаа долоо хоногийн review...",
+    title: "5. Контент, борлуулалт, follow-up, сургалт эсвэл багийн удирдлагын алинд нь тусламж хэрэгтэй вэ?",
+    helper: "Үзэгч, ашиглах суваг, багийн нөхцөл болон хүссэн зөвлөгөөний хэв маягаа хамтад нь бичнэ үү.",
+    placeholder: "Жишээ: Facebook контент, discovery асуулт, follow-up ба долоо хоногийн багийн review...",
     min: 10,
   },
 ];
@@ -108,6 +108,8 @@ export function OnboardingForm({ displayName, initialAnswers, initialAiConsent }
         <p className="eyebrow cyan">2 МИНУТ · STARTER SUCCESS MAP</p>
         <h1>Сайн байна уу, {displayName}.</h1>
         <p>Эдгээр 5 хариултаар таны эхний 7/30 хоногийн content ба management төлөвлөгөөг гаргана. Энэ нь засварлаж болдог ажлын эхлэл болохоос зан төлөвийн онош биш.</p>
+        <p className="onboarding-privacy">Таны бүрэн хариулт зөвхөн танд харагдана. Sponsor/coach-д зорилго, гол саад, хэрэгтэй тусламж болон явцын purpose-limited summary л харагдана.</p>
+        <form action="/auth/signout" method="post"><button className="text-button" type="submit">Өөр аккаунтаар нэвтрэх / Гарах</button></form>
         <div className="onboarding-progress" aria-label={`${completed}/5 асуулт бөглөгдсөн`}>
           <span style={{ width: `${(completed / QUESTIONS.length) * 100}%` }} />
         </div>

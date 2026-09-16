@@ -49,7 +49,42 @@ type TaskRow = {
   status: string;
 };
 type ProfileRow = { id: string; email: string; display_name: string; created_at: string };
-type MembershipRow = { user_id: string; role: TeamRole; status: "active" | "disabled" };
+type MembershipRow = { user_id: string; role: TeamRole; status: "active" | "disabled"; onboarding_required: boolean };
+type RelationshipRow = {
+  member_user_id: string;
+  sponsor_user_id: string | null;
+  coach_user_id: string | null;
+  team_name: string;
+};
+type SuccessSummaryRow = {
+  user_id: string;
+  goal_30_day: string;
+  weekly_capacity: string;
+  primary_blocker: string;
+  support_needs: string;
+  today_action: string;
+  updated_at: string;
+};
+type CheckinRow = {
+  id: number;
+  user_id: string;
+  progress_summary: string;
+  blocker: string;
+  help_request: string;
+  next_focus: string;
+  progress_percent: number;
+  needs_help: boolean;
+  created_at: string;
+};
+type CoachNoteRow = {
+  id: number;
+  member_user_id: string;
+  author_user_id: string;
+  note: string;
+  next_action: string;
+  visible_to_member: boolean;
+  created_at: string;
+};
 type SuccessMapRow = {
   current_context: string;
   goal_30_day: string;
@@ -113,7 +148,19 @@ function serverError(error: unknown) {
 export async function GET() {
   try {
     const { supabase, userId, role } = await authorizedContext();
-    const [progressResult, lessonsResult, draftsResult, tasksResult, successMapResult] = await Promise.all([
+    const [
+      progressResult,
+      lessonsResult,
+      draftsResult,
+      tasksResult,
+      successMapResult,
+      profilesResult,
+      membershipsResult,
+      relationshipsResult,
+      summariesResult,
+      checkinsResult,
+      coachNotesResult,
+    ] = await Promise.all([
       supabase.from("lesson_progress").select("lesson_id,status,score").order("completed_at", { ascending: false }),
       supabase
         .from("academy_lessons")
@@ -136,9 +183,25 @@ export async function GET() {
         .select("current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_source,ai_consent,completed_at,updated_at")
         .eq("user_id", userId)
         .maybeSingle(),
+      supabase.from("user_profiles").select("id,email,display_name,created_at").order("created_at", { ascending: false }),
+      supabase.from("team_members").select("user_id,role,status,onboarding_required"),
+      supabase.from("member_relationships").select("member_user_id,sponsor_user_id,coach_user_id,team_name"),
+      supabase.from("member_success_summaries").select("user_id,goal_30_day,weekly_capacity,primary_blocker,support_needs,today_action,updated_at"),
+      supabase.from("member_checkins").select("id,user_id,progress_summary,blocker,help_request,next_focus,progress_percent,needs_help,created_at").order("created_at", { ascending: false }).limit(200),
+      supabase.from("coach_notes").select("id,member_user_id,author_user_id,note,next_action,visible_to_member,created_at").order("created_at", { ascending: false }).limit(200),
     ]);
 
-    const firstError = progressResult.error ?? lessonsResult.error ?? draftsResult.error ?? tasksResult.error ?? successMapResult.error;
+    const firstError = progressResult.error
+      ?? lessonsResult.error
+      ?? draftsResult.error
+      ?? tasksResult.error
+      ?? successMapResult.error
+      ?? profilesResult.error
+      ?? membershipsResult.error
+      ?? relationshipsResult.error
+      ?? summariesResult.error
+      ?? checkinsResult.error
+      ?? coachNotesResult.error;
     if (firstError) throw firstError;
 
     const progress = ((progressResult.data ?? []) as LessonRow[]).map((row) => ({
@@ -194,23 +257,112 @@ export async function GET() {
       updatedAt: successMapRow.updated_at,
     } : null;
 
-    let users: Array<{ id: string; email: string; displayName: string; role: TeamRole; status: "active" | "disabled"; createdAt: string }> = [];
+    const profiles = (profilesResult.data ?? []) as ProfileRow[];
+    const memberships = (membershipsResult.data ?? []) as MembershipRow[];
+    const relationships = (relationshipsResult.data ?? []) as RelationshipRow[];
+    const summaries = (summariesResult.data ?? []) as SuccessSummaryRow[];
+    const checkins = (checkinsResult.data ?? []) as CheckinRow[];
+    const coachNotesRows = (coachNotesResult.data ?? []) as CoachNoteRow[];
+    const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const membershipsById = new Map(memberships.map((membership) => [membership.user_id, membership]));
+    const relationshipsById = new Map(relationships.map((relationship) => [relationship.member_user_id, relationship]));
+    const summariesById = new Map(summaries.map((summary) => [summary.user_id, summary]));
+    const latestCheckinsById = new Map<string, CheckinRow>();
+    for (const checkin of checkins) {
+      if (!latestCheckinsById.has(checkin.user_id)) latestCheckinsById.set(checkin.user_id, checkin);
+    }
+
+    let users: Array<{
+      id: string;
+      email: string;
+      displayName: string;
+      role: TeamRole;
+      status: "active" | "disabled";
+      createdAt: string;
+      sponsorUserId: string | null;
+      coachUserId: string | null;
+      teamName: string;
+    }> = [];
     if (role === "admin") {
-      const [profilesResult, membershipsResult] = await Promise.all([
-        supabase.from("user_profiles").select("id,email,display_name,created_at").order("created_at", { ascending: false }),
-        supabase.from("team_members").select("user_id,role,status"),
-      ]);
-      if (profilesResult.error) throw profilesResult.error;
-      if (membershipsResult.error) throw membershipsResult.error;
-      const memberships = new Map(((membershipsResult.data ?? []) as MembershipRow[]).map((member) => [member.user_id, member]));
-      users = ((profilesResult.data ?? []) as ProfileRow[]).flatMap((profile) => {
-        const membership = memberships.get(profile.id);
-        return membership ? [{ id: profile.id, email: profile.email, displayName: profile.display_name, role: membership.role, status: membership.status, createdAt: profile.created_at }] : [];
+      users = profiles.flatMap((profile) => {
+        const membership = membershipsById.get(profile.id);
+        const relationship = relationshipsById.get(profile.id);
+        return membership ? [{
+          id: profile.id,
+          email: profile.email,
+          displayName: profile.display_name,
+          role: membership.role,
+          status: membership.status,
+          createdAt: profile.created_at,
+          sponsorUserId: relationship?.sponsor_user_id ?? null,
+          coachUserId: relationship?.coach_user_id ?? null,
+          teamName: relationship?.team_name ?? "inSuccess Team",
+        }] : [];
       });
     }
 
+    const supportMembers = memberships
+      .filter((membership) => membership.user_id !== userId)
+      .flatMap((membership) => {
+        const profile = profilesById.get(membership.user_id);
+        if (!profile) return [];
+        const relationship = relationshipsById.get(membership.user_id);
+        const summary = summariesById.get(membership.user_id);
+        const latestCheckin = latestCheckinsById.get(membership.user_id);
+        return [{
+          id: membership.user_id,
+          email: profile.email,
+          displayName: profile.display_name,
+          role: membership.role,
+          teamName: relationship?.team_name ?? "inSuccess Team",
+          sponsorName: relationship?.sponsor_user_id ? profilesById.get(relationship.sponsor_user_id)?.display_name ?? null : null,
+          coachName: relationship?.coach_user_id ? profilesById.get(relationship.coach_user_id)?.display_name ?? null : null,
+          onboardingRequired: membership.onboarding_required,
+          summary: summary ? {
+            goal30Day: summary.goal_30_day,
+            weeklyCapacity: summary.weekly_capacity,
+            primaryBlocker: summary.primary_blocker,
+            supportNeeds: summary.support_needs,
+            todayAction: summary.today_action,
+            updatedAt: summary.updated_at,
+          } : null,
+          latestCheckin: latestCheckin ? {
+            progressSummary: latestCheckin.progress_summary,
+            blocker: latestCheckin.blocker,
+            helpRequest: latestCheckin.help_request,
+            nextFocus: latestCheckin.next_focus,
+            progressPercent: latestCheckin.progress_percent,
+            needsHelp: latestCheckin.needs_help,
+            createdAt: latestCheckin.created_at,
+          } : null,
+        }];
+      });
+
+    const myCheckins = checkins.filter((checkin) => checkin.user_id === userId).map((checkin) => ({
+      id: checkin.id,
+      progressSummary: checkin.progress_summary,
+      blocker: checkin.blocker,
+      helpRequest: checkin.help_request,
+      nextFocus: checkin.next_focus,
+      progressPercent: checkin.progress_percent,
+      needsHelp: checkin.needs_help,
+      createdAt: checkin.created_at,
+    }));
+
+    const coachNotes = coachNotesRows.map((note) => ({
+      id: note.id,
+      memberUserId: note.member_user_id,
+      authorUserId: note.author_user_id,
+      authorName: profilesById.get(note.author_user_id)?.display_name ?? "Sponsor / Coach",
+      note: note.note,
+      nextAction: note.next_action,
+      visibleToMember: note.visible_to_member,
+      createdAt: note.created_at,
+    }));
+
     return Response.json({
       viewer: {
+        userId,
         role,
         canReview: ["coach", "director", "admin"].includes(role),
         canRecordCorporateApproval: role === "admin",
@@ -220,6 +372,9 @@ export async function GET() {
       drafts,
       memberTasks,
       users,
+      supportMembers,
+      myCheckins,
+      coachNotes,
       successMap,
     });
   } catch (error) {
@@ -238,12 +393,43 @@ export async function POST(request: Request) {
       const targetUserId = String(body.userId ?? "");
       const nextRole = String(body.role ?? "");
       const status = String(body.status ?? "");
-      if (!/^[0-9a-f-]{36}$/i.test(targetUserId) || !["user", "builder", "coach", "director", "admin"].includes(nextRole) || !["active", "disabled"].includes(status)) {
+      const sponsorUserId = body.sponsorUserId ? String(body.sponsorUserId) : null;
+      const coachUserId = body.coachUserId ? String(body.coachUserId) : null;
+      const teamName = String(body.teamName ?? "inSuccess Team").replace(/\s+/g, " ").trim().slice(0, 80);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (
+        !uuidPattern.test(targetUserId)
+        || !["user", "builder", "coach", "director", "admin"].includes(nextRole)
+        || !["active", "disabled"].includes(status)
+        || (sponsorUserId !== null && !uuidPattern.test(sponsorUserId))
+        || (coachUserId !== null && !uuidPattern.test(coachUserId))
+        || sponsorUserId === targetUserId
+        || coachUserId === targetUserId
+        || !teamName
+      ) {
         return Response.json({ error: "Хэрэглэгчийн эрхийн мэдээлэл буруу байна." }, { status: 400 });
       }
       if (targetUserId === userId && (nextRole !== "admin" || status !== "active")) {
         return Response.json({ error: "Өөрийн админ эрхийг идэвхгүй болгох боломжгүй." }, { status: 409 });
       }
+      const relationshipIds = [...new Set([sponsorUserId, coachUserId].filter((value): value is string => Boolean(value)))];
+      if (relationshipIds.length > 0) {
+        const { data: assignedMembers, error: assignedError } = await supabase
+          .from("team_members")
+          .select("user_id,role,status")
+          .in("user_id", relationshipIds);
+        if (assignedError) throw assignedError;
+        const assignedById = new Map((assignedMembers ?? []).map((member) => [member.user_id, member]));
+        const sponsor = sponsorUserId ? assignedById.get(sponsorUserId) : null;
+        const coach = coachUserId ? assignedById.get(coachUserId) : null;
+        if (sponsorUserId && (!sponsor || sponsor.status !== "active" || !["builder", "coach", "director", "admin"].includes(sponsor.role))) {
+          return Response.json({ error: "Идэвхтэй sponsor сонгоно уу." }, { status: 400 });
+        }
+        if (coachUserId && (!coach || coach.status !== "active" || !["coach", "director", "admin"].includes(coach.role))) {
+          return Response.json({ error: "Coach эрхтэй идэвхтэй хэрэглэгч сонгоно уу." }, { status: 400 });
+        }
+      }
+
       const { data: updated, error } = await supabase
         .from("team_members")
         .update({ role: nextRole, status, updated_at: new Date().toISOString() })
@@ -252,7 +438,81 @@ export async function POST(request: Request) {
         .maybeSingle();
       if (error) throw error;
       if (!updated) throw new WorkspaceError(404, "Хэрэглэгч олдсонгүй.");
+
+      const { data: existingRelationship, error: relationshipLookupError } = await supabase
+        .from("member_relationships")
+        .select("member_user_id")
+        .eq("member_user_id", targetUserId)
+        .maybeSingle();
+      if (relationshipLookupError) throw relationshipLookupError;
+      const relationshipWrite = existingRelationship
+        ? supabase.from("member_relationships").update({
+            sponsor_user_id: sponsorUserId,
+            coach_user_id: coachUserId,
+            team_name: teamName,
+            updated_at: new Date().toISOString(),
+          }).eq("member_user_id", targetUserId)
+        : supabase.from("member_relationships").insert({
+            member_user_id: targetUserId,
+            sponsor_user_id: sponsorUserId,
+            coach_user_id: coachUserId,
+            team_name: teamName,
+            created_by: userId,
+          });
+      const { error: relationshipError } = await relationshipWrite;
+      if (relationshipError) throw relationshipError;
       return Response.json({ ok: true });
+    }
+
+    if (action === "weekly_checkin") {
+      const progressSummary = String(body.progressSummary ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+      const blocker = String(body.blocker ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+      const helpRequest = String(body.helpRequest ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+      const nextFocus = String(body.nextFocus ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+      const progressPercent = Number(body.progressPercent);
+      const needsHelp = body.needsHelp === true;
+      if (progressSummary.length < 3 || nextFocus.length < 3 || !Number.isInteger(progressPercent) || progressPercent < 0 || progressPercent > 100) {
+        return Response.json({ error: "Явц, дараагийн зорилго болон хувийг зөв оруулна уу." }, { status: 400 });
+      }
+      const { data: checkin, error } = await supabase
+        .from("member_checkins")
+        .insert({
+          user_id: userId,
+          progress_summary: progressSummary,
+          blocker,
+          help_request: helpRequest,
+          next_focus: nextFocus,
+          progress_percent: progressPercent,
+          needs_help: needsHelp,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return Response.json({ checkin }, { status: 201 });
+    }
+
+    if (action === "add_coach_note") {
+      if (!["builder", "coach", "director", "admin"].includes(role)) throw new WorkspaceError(403, "Sponsor эсвэл coach эрх шаардлагатай.");
+      const memberUserId = String(body.memberUserId ?? "");
+      const note = String(body.note ?? "").replace(/\s+/g, " ").trim().slice(0, 1600);
+      const nextAction = String(body.nextAction ?? "").replace(/\s+/g, " ").trim().slice(0, 800);
+      const visibleToMember = body.visibleToMember !== false;
+      if (!/^[0-9a-f-]{36}$/i.test(memberUserId) || memberUserId === userId || note.length < 3) {
+        return Response.json({ error: "Гишүүн болон зөвлөгөөний мэдээллийг зөв оруулна уу." }, { status: 400 });
+      }
+      const { data: coachNote, error } = await supabase
+        .from("coach_notes")
+        .insert({
+          member_user_id: memberUserId,
+          author_user_id: userId,
+          note,
+          next_action: nextAction,
+          visible_to_member: visibleToMember,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return Response.json({ coachNote }, { status: 201 });
     }
 
     if (action === "toggle_lesson") {
