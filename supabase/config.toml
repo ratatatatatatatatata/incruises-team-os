@@ -7,17 +7,24 @@ extra_search_path = ["public", "extensions"]
 
 [auth]
 enabled = true
-site_url = "https://incruises-team-os.vercel.app"
+enable_signup = false
+site_url = "https://www.insuccess.net"
 additional_redirect_urls = [
   "http://localhost:3000/auth/confirm",
   "https://incruises-team-os.vercel.app/auth/confirm",
+  "https://www.insuccess.net/auth/confirm",
+  "https://insuccess.net/auth/confirm",
 ]
 
 [auth.email]
-enable_signup = true
+enable_signup = false
 double_confirm_changes = true
 enable_confirmations = true
 secure_password_change = false
+
+[auth.email.template.invite]
+subject = "inSuccess-д тавтай морил — урилгаа баталгаажуулна уу"
+content_path = "./supabase/templates/invite.html"
 max_frequency = "1m"
 otp_length = 8
 otp_expiry = 3600

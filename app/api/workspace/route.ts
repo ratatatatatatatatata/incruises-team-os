@@ -1,6 +1,7 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { officialSources } from "../../team-os-data";
+import type { SuccessMapPlan } from "@/lib/success-map/contracts";
 
 const allowedSourceIds = new Set<string>(officialSources.map((source) => source.id));
 const allowedChannels = new Set(["Facebook", "Instagram", "Short video", "FAQ", "Message"]);
@@ -49,6 +50,18 @@ type TaskRow = {
 };
 type ProfileRow = { id: string; email: string; display_name: string; created_at: string };
 type MembershipRow = { user_id: string; role: TeamRole; status: "active" | "disabled" };
+type SuccessMapRow = {
+  current_context: string;
+  goal_30_day: string;
+  weekly_capacity: string;
+  primary_blocker: string;
+  growth_preferences: string;
+  plan: SuccessMapPlan;
+  plan_source: "deterministic" | "ai_gateway";
+  ai_consent: boolean;
+  completed_at: string;
+  updated_at: string;
+};
 
 class WorkspaceError extends Error {
   constructor(
@@ -100,7 +113,7 @@ function serverError(error: unknown) {
 export async function GET() {
   try {
     const { supabase, userId, role } = await authorizedContext();
-    const [progressResult, lessonsResult, draftsResult, tasksResult] = await Promise.all([
+    const [progressResult, lessonsResult, draftsResult, tasksResult, successMapResult] = await Promise.all([
       supabase.from("lesson_progress").select("lesson_id,status,score").order("completed_at", { ascending: false }),
       supabase
         .from("academy_lessons")
@@ -118,9 +131,14 @@ export async function GET() {
         .select("id,member_name,milestone,next_action,due_label,risk,status")
         .order("updated_at", { ascending: false })
         .limit(40),
+      supabase
+        .from("member_success_maps")
+        .select("current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_source,ai_consent,completed_at,updated_at")
+        .eq("user_id", userId)
+        .maybeSingle(),
     ]);
 
-    const firstError = progressResult.error ?? lessonsResult.error ?? draftsResult.error ?? tasksResult.error;
+    const firstError = progressResult.error ?? lessonsResult.error ?? draftsResult.error ?? tasksResult.error ?? successMapResult.error;
     if (firstError) throw firstError;
 
     const progress = ((progressResult.data ?? []) as LessonRow[]).map((row) => ({
@@ -160,6 +178,21 @@ export async function GET() {
       risk: row.risk,
       status: row.status,
     }));
+    const successMapRow = successMapResult.data as SuccessMapRow | null;
+    const successMap = successMapRow ? {
+      answers: {
+        currentContext: successMapRow.current_context,
+        goal30Day: successMapRow.goal_30_day,
+        weeklyCapacity: successMapRow.weekly_capacity,
+        primaryBlocker: successMapRow.primary_blocker,
+        growthPreferences: successMapRow.growth_preferences,
+      },
+      plan: successMapRow.plan,
+      planSource: successMapRow.plan_source,
+      aiConsent: successMapRow.ai_consent,
+      completedAt: successMapRow.completed_at,
+      updatedAt: successMapRow.updated_at,
+    } : null;
 
     let users: Array<{ id: string; email: string; displayName: string; role: TeamRole; status: "active" | "disabled"; createdAt: string }> = [];
     if (role === "admin") {
@@ -187,6 +220,7 @@ export async function GET() {
       drafts,
       memberTasks,
       users,
+      successMap,
     });
   } catch (error) {
     return serverError(error);

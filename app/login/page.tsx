@@ -34,8 +34,8 @@ export default async function LoginPage({
             <button className="primary-button" formAction={login} disabled={!configured}>Нэвтрэх</button>
           </div>
         </form>
-        <p className="signin-switch">Шинэ хэрэглэгч үү? <Link href="/signup">Бүртгүүлэх</Link></p>
-        <p className="signin-note">Бүртгүүлсний дараа имэйлээ баталгаажуулаад нэвтэрнэ.</p>
+        <p className="signin-switch">Эрх зөвхөн админы имэйл урилгаар үүснэ.</p>
+        <p className="signin-note">Урилга авсан бол имэйл дэх холбоосоор эхлээд нууц үгээ тохируулна уу.</p>
       </section>
     </main>
   );

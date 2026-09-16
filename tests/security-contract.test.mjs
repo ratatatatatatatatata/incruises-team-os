@@ -14,28 +14,61 @@ test("auth redirect accepts only same-origin relative paths", () => {
   assert.equal(safeNextPath(null, origin), "/");
 });
 
-test("public sign-up creates server-authoritative membership records", async () => {
-  const [login, signup, currentUser, config, membershipMigration, registrationMigration] = await Promise.all([
+test("invite-only access gates membership and disables public sign-up", async () => {
+  const [login, signupPage, signupAction, currentUser, config, inviteTemplate, membershipMigration, inviteMigration, inviteFunction] = await Promise.all([
     readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/signup/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/signup/actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/current-user.ts", import.meta.url), "utf8"),
     readFile(new URL("../supabase/config.toml", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/templates/invite.html", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260829062550_harden_membership_access.sql", import.meta.url), "utf8"),
-    readFile(new URL("../supabase/migrations/20260908062000_enable_registration_and_user_directory.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260915213140_invite_only_success_map_v1.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/functions/invite-member/index.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(login, /Бүртгүүлэх/);
-  assert.match(signup, /auth\.signUp/);
-  assert.match(config, /enable_signup = true/);
+  assert.match(login, /зөвхөн админы имэйл урилгаар/);
+  assert.match(signupPage, /INVITE-ONLY ACCESS/);
+  assert.doesNotMatch(signupAction, /auth\.signUp/);
+  assert.match(config, /enable_signup = false/);
+  assert.match(inviteTemplate, /token_hash=\{\{ \.TokenHash \}\}/);
+  assert.match(inviteTemplate, /type=invite/);
+  assert.match(inviteTemplate, /\/auth\/confirm/);
   assert.match(currentUser, /team_members/);
   assert.doesNotMatch(currentUser, /metadata\.(role|app_role)|user_metadata.*\["role"\]/);
   assert.match(membershipMigration, /create table if not exists public\.team_members/);
   assert.match(membershipMigration, /revoke all on table public\.team_members from anon, authenticated/);
   assert.doesNotMatch(membershipMigration, /grant (insert|update|delete).*team_members.*authenticated/i);
-  assert.match(registrationMigration, /create trigger on_auth_user_created_create_team_profile/);
-  assert.match(registrationMigration, /security definer/);
-  assert.match(registrationMigration, /set search_path = ''/);
-  assert.match(registrationMigration, /team_members_update_admin/);
+  assert.match(inviteMigration, /public\.member_invitations/);
+  assert.match(inviteMigration, /invitation\.status in \('pending', 'sent'\)/);
+  assert.match(inviteMigration, /if not found then\s+return new/);
+  assert.match(inviteMigration, /onboarding_required = true/);
+  assert.match(inviteFunction, /inviteUserByEmail/);
+  assert.match(inviteFunction, /membership\.role !== "admin"/);
+  assert.doesNotMatch(inviteFunction, /delete\(/);
+});
+
+test("starter map uses exactly five private answers with explicit AI consent", async () => {
+  const [form, route, migration, hardeningMigration, ai] = await Promise.all([
+    readFile(new URL("../app/onboarding/onboarding-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/success-map/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260915213140_invite_only_success_map_v1.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260915215100_harden_success_map_rpc.sql", import.meta.url), "utf8"),
+    readFile(new URL("../lib/success-map/ai.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.equal((form.match(/title: "[1-5]\./g) ?? []).length, 5);
+  assert.match(form, /Personal AI-аар илүү нарийвчлуулах/);
+  assert.match(route, /p_ai_consent/);
+  assert.match(migration, /member_success_maps_select_active_own/);
+  assert.doesNotMatch(migration, /member_success_maps_select_admin/);
+  assert.match(migration, /revoke all on table public\.member_success_maps from anon, authenticated/);
+  assert.match(hardeningMigration, /create or replace function private\.complete_starter_success_map/);
+  assert.match(hardeningMigration, /create or replace function public\.complete_starter_success_map[\s\S]*security invoker/);
+  assert.doesNotMatch(hardeningMigration, /create or replace function public\.complete_starter_success_map[\s\S]{0,180}security definer/);
+  assert.match(ai, /zeroDataRetention: true/);
+  assert.match(ai, /disallowPromptTraining: true/);
+  assert.doesNotMatch(ai, /email|userId/);
 });
 
 test("production accepts Vercel Marketplace Supabase environment names", async () => {
