@@ -103,6 +103,16 @@ test("sponsor and coach operations expose only purpose-limited summaries", async
   assert.match(app, /Түүхий 5 хариулт харагдахгүй/);
 });
 
+test("sponsor relationship foreign keys have covering indexes", async () => {
+  const indexMigration = await readFile(
+    new URL("../supabase/migrations/20260916175300_index_member_relationships_creator.sql", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(indexMigration, /member_relationships_created_by_idx/);
+  assert.doesNotMatch(indexMigration, /drop|delete|truncate/i);
+});
+
 test("starter advice is explicit, measurable and upgrade-safe", async () => {
   const [planner, ai, app, route] = await Promise.all([
     readFile(new URL("../lib/success-map/planner.ts", import.meta.url), "utf8"),
