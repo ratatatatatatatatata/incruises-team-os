@@ -14,7 +14,7 @@ export type AcademyLessonCandidate = {
 };
 
 export type SuccessMapPlan = {
-  version: 1;
+  version: 1 | 2;
   generatedAt: string;
   profileSummary: string;
   whyThisPlan: string;

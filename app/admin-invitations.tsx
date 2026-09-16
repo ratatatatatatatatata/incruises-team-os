@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { WorkspacePayload } from "./team-os-data";
 
 type Invitation = {
   id: string;
@@ -11,6 +12,9 @@ type Invitation = {
   invited_at: string;
   expires_at: string;
   accepted_at: string | null;
+  sponsor_user_id: string | null;
+  coach_user_id: string | null;
+  team_name: string;
 };
 
 const statusText: Record<Invitation["status"], string> = {
@@ -21,13 +25,21 @@ const statusText: Record<Invitation["status"], string> = {
   failed: "Илгээгүй",
 };
 
-export function AdminInvitations() {
+export function AdminInvitations({ users }: { users: WorkspacePayload["users"] }) {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [form, setForm] = useState({ displayName: "", email: "", role: "user" });
+  const [form, setForm] = useState({ displayName: "", email: "", role: "user", sponsorUserId: "", coachUserId: "", teamName: "inSuccess Team" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const sponsorOptions = useMemo(
+    () => users.filter((user) => user.status === "active" && ["builder", "coach", "director", "admin"].includes(user.role)),
+    [users],
+  );
+  const coachOptions = useMemo(
+    () => users.filter((user) => user.status === "active" && ["coach", "director", "admin"].includes(user.role)),
+    [users],
+  );
 
   const load = useCallback(async () => {
     const result = await fetch("/api/admin/invitations", { cache: "no-store" });
@@ -62,11 +74,15 @@ export function AdminInvitations() {
       const result = await fetch("/api/admin/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          sponsorUserId: form.sponsorUserId || sponsorOptions[0]?.id || null,
+          coachUserId: form.coachUserId || null,
+        }),
       });
       const body = (await result.json().catch(() => ({}))) as { error?: string };
       if (!result.ok) throw new Error(body.error ?? "Урилгыг илгээж чадсангүй.");
-      setForm({ displayName: "", email: "", role: "user" });
+      setForm((current) => ({ ...current, displayName: "", email: "", role: "user" }));
       setMessage("Урилга илгээгдлээ. Хүлээн авагч имэйл дэх холбоосоор нэвтэрнэ.");
       await load();
     } catch (submissionError) {
@@ -88,6 +104,9 @@ export function AdminInvitations() {
           <label>Нэр<input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} maxLength={80} required /></label>
           <label>Имэйл<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} maxLength={320} required /></label>
           <label>Эхний эрх<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}><option value="user">Хэрэглэгч</option><option value="builder">Builder</option><option value="coach">Coach</option><option value="director">Director</option></select></label>
+          <label>Баг<input value={form.teamName} onChange={(event) => setForm({ ...form, teamName: event.target.value })} maxLength={80} required /></label>
+          <label>Sponsor<select value={form.sponsorUserId || sponsorOptions[0]?.id || ""} onChange={(event) => setForm({ ...form, sponsorUserId: event.target.value })} required><option value="">Sponsor сонгох</option>{sponsorOptions.map((user) => <option value={user.id} key={user.id}>{user.displayName} · {user.role}</option>)}</select></label>
+          <label>Coach<select value={form.coachUserId} onChange={(event) => setForm({ ...form, coachUserId: event.target.value })}><option value="">Coach оноохгүй</option>{coachOptions.map((user) => <option value={user.id} key={user.id}>{user.displayName} · {user.role}</option>)}</select></label>
           <button className="primary-button" type="submit" disabled={saving}>{saving ? "Илгээж байна..." : "Урилга илгээх"}</button>
         </form>
         {message && <p className="auth-message success" role="status">{message}</p>}
@@ -98,7 +117,7 @@ export function AdminInvitations() {
         <div className="panel-heading"><div><p className="eyebrow blue">INVITATION STATUS</p><h3>Сүүлийн урилгууд</h3></div><span className="count-badge">{invitations.length}</span></div>
         {loading ? <p>Уншиж байна...</p> : invitations.length === 0 ? <p>Одоогоор урилга алга.</p> : invitations.map((invitation) => (
           <div className="invitation-row" key={invitation.id}>
-            <div><strong>{invitation.display_name}</strong><span>{invitation.email}</span><small>{new Date(invitation.invited_at).toLocaleString("mn-MN")}</small></div>
+            <div><strong>{invitation.display_name}</strong><span>{invitation.email}</span><small>{invitation.team_name} · {new Date(invitation.invited_at).toLocaleString("mn-MN")}</small></div>
             <div><span className={`status status-${invitation.status}`}>{statusText[invitation.status]}</span><small>{invitation.role}</small></div>
           </div>
         ))}
