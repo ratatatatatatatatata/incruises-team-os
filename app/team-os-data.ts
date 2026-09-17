@@ -120,6 +120,7 @@ export const officialSources = [
 ] as const;
 
 export type WorkspacePayload = {
+  first30DayEnabled: boolean;
   viewer: {
     userId: string;
     role: "user" | "builder" | "coach" | "director" | "admin";
@@ -215,6 +216,62 @@ export type WorkspacePayload = {
     note: string;
     nextAction: string;
     visibleToMember: boolean;
+    createdAt: string;
+  }>;
+  activeAction: {
+    id: string;
+    title: string;
+    detail: string;
+    doneWhen: string;
+    minutes: number;
+    capacityMinutes: number;
+    status: "proposed" | "accepted" | "started" | "done" | "blocked" | "paused" | "superseded";
+    blockedReason: string;
+    resourceLessonId: string | null;
+    sequenceNo: number;
+    updatedAt: string;
+  } | null;
+  myActionHistory: Array<{
+    id: string;
+    title: string;
+    status: string;
+    minutes: number;
+    sequenceNo: number;
+    updatedAt: string;
+  }>;
+  supportRequests: Array<{
+    id: string;
+    memberUserId: string;
+    actionId: string;
+    assignedTo: string | null;
+    requestType: string;
+    requestText: string;
+    status: string;
+    resolutionNote: string;
+    outcomeHelpful: boolean | null;
+    nextCheckAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  academyPractices: Array<{
+    id: string;
+    memberUserId: string;
+    actionId: string;
+    lessonId: string;
+    prompt: string;
+    submission: string;
+    status: string;
+    reviewerUserId: string | null;
+    feedback: string;
+    updatedAt: string;
+  }>;
+  rankClaims: Array<{
+    id: string;
+    memberUserId: string;
+    claimedLabel: string;
+    sourceKind: string;
+    evidenceReference: string;
+    status: string;
     createdAt: string;
   }>;
   successMap: StoredSuccessMap | null;

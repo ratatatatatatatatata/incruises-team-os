@@ -15,6 +15,7 @@ type SuccessMapRow = {
   primary_blocker: string;
   growth_preferences: string;
   ai_consent: boolean;
+  support_summary_consent?: boolean;
 };
 
 export default async function OnboardingPage() {
@@ -23,9 +24,12 @@ export default async function OnboardingPage() {
   if (user.access !== "active" || !user.role) redirect("/access-pending");
 
   const supabase = await createClient();
+  const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
   const { data } = await supabase
     .from("member_success_maps")
-    .select("current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,ai_consent")
+    .select(first30DayEnabled
+      ? "current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,ai_consent,support_summary_consent"
+      : "current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,ai_consent")
     .eq("user_id", user.userId)
     .maybeSingle();
   const row = data as SuccessMapRow | null;
@@ -42,6 +46,7 @@ export default async function OnboardingPage() {
       displayName={user.displayName}
       initialAnswers={initialAnswers}
       initialAiConsent={row?.ai_consent ?? false}
+      initialSupportSummaryConsent={row?.support_summary_consent ?? true}
     />
   );
 }

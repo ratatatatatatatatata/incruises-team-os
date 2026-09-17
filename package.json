@@ -10,8 +10,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "pnpm run build && node --test tests/*.test.mjs",
-    "test:source": "node --test tests/*.test.mjs",
+    "test": "pnpm run build && node --experimental-strip-types --test tests/*.test.mjs",
+    "test:source": "node --experimental-strip-types --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern dist --ignore-pattern .vercel --ignore-pattern apps/mobile",
     "typecheck": "tsc --noEmit"
   },

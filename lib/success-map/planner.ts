@@ -2,7 +2,7 @@ import type { AcademyLessonCandidate, StarterAnswers, SuccessMapPlan } from "./c
 
 const DAY_LABELS = ["1 дэх өдөр", "2 дахь өдөр", "3 дахь өдөр", "4 дэх өдөр", "5 дахь өдөр", "6 дахь өдөр", "7 дахь өдөр"];
 
-type FocusTrack = "content" | "follow_up" | "discovery" | "learning" | "team" | "general";
+type FocusTrack = "content" | "follow_up" | "discovery" | "communication" | "learning" | "team" | "general";
 
 type ActionTemplate = {
   title: string;
@@ -14,30 +14,101 @@ function clean(value: string, maximum: number) {
   return value.replace(/\s+/g, " ").trim().slice(0, maximum);
 }
 
+export function normalizeMongolianIntent(value: string) {
+  return value
+    .toLocaleLowerCase("mn-MN")
+    .replace(/[‐‑‒–—]/g, "-")
+    .replace(/follow\s*[- ]?\s*up/g, "follow-up")
+    .replace(/hereg\s*g(?:ui|vi)/g, "хэрэггүй")
+    .replace(/hiih\s*g(?:ui|vi)/g, "хийхгүй")
+    .replace(/sonirhol\s*g(?:ui|vi)/g, "сонирхолгүй")
+    .replace(/\bbusiness\b/g, "бизнес")
+    .replace(/\bbish\b/g, "биш")
+    .replace(/\bugui\b|\bgui\b|\bgvi\b/g, "үгүй")
+    .replace(/\bmin(?:ute)?s?\b/g, "минут")
+    .replace(/\btsag\b/g, "цаг")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function containsAny(value: string, words: string[]) {
-  const normalized = value.toLocaleLowerCase("mn-MN");
+  const normalized = normalizeMongolianIntent(value);
   return words.some((word) => normalized.includes(word));
 }
 
-function actionMinutes(capacity: string) {
-  if (containsAny(capacity, ["15 мин", "30 мин", "1 цаг", "бага"])) return 20;
-  if (containsAny(capacity, ["10 цаг", "өдөр бүр", "бүтэн"])) return 45;
+const NEGATION_WORDS = ["хэрэггүй", "хийхгүй", "сонирхолгүй", "үгүй", "биш", "болих", "татгалз"];
+
+function isNegated(value: string, word: string) {
+  const normalized = normalizeMongolianIntent(value);
+  const target = normalizeMongolianIntent(word);
+
+  return normalized
+    .split(/[,.;!?]|\b(?:харин|гэхдээ)\b/iu)
+    .some((clause) => {
+      const tokens = clause.match(/[\p{L}\p{N}-]+/gu) ?? [];
+      const targetIndexes = tokens.flatMap((token, index) =>
+        token === target || token.startsWith(target) ? [index] : [],
+      );
+      const negativeIndexes = tokens.flatMap((token, index) =>
+        NEGATION_WORDS.some((negative) => token === negative || token.startsWith(negative)) ? [index] : [],
+      );
+
+      return targetIndexes.some((targetIndex) =>
+        negativeIndexes.some((negativeIndex) => Math.abs(targetIndex - negativeIndex) <= 4),
+      );
+    });
+}
+
+function containsPositiveAny(value: string, words: string[]) {
+  const normalized = normalizeMongolianIntent(value);
+  return words.some((word) => normalized.includes(normalizeMongolianIntent(word)) && !isNegated(normalized, word));
+}
+
+export function actionConflictsWithAnswers(answers: StarterAnswers, actionText: string) {
+  const combined = Object.values(answers).join(" ");
+  const excludedGroups = [
+    ["follow-up", "follow up", "фоллов", "эргэж холбог", "дахин холбог"],
+    ["контент", "пост", "сошиал", "facebook", "instagram", "video", "reel"],
+    ["бизнес", "борлуулалт", "борлуул"],
+    ["баг", "удирдлага", "удирд"],
+  ];
+
+  return excludedGroups.some((words) =>
+    words.some((word) => isNegated(combined, word))
+      && containsPositiveAny(actionText, words),
+  );
+}
+
+export function actionMinutes(capacity: string) {
+  const normalized = normalizeMongolianIntent(capacity);
+  const minuteMatch = normalized.match(/(\d{1,3})\s*(?:минут|мин)(?=\s|$|[,.])/u);
+  if (minuteMatch) return Math.max(5, Math.min(45, Number(minuteMatch[1])));
+
+  const hourMatch = normalized.match(/(?:^|\s)(\d{1,2}(?:[.,]\d{1,2})?)\s*цаг(?=\s|$|[,.])/u);
+  if (hourMatch) {
+    const totalMinutes = Math.round(Number(hourMatch[1].replace(",", ".")) * 60);
+    return Math.max(5, Math.min(45, totalMinutes));
+  }
+
+  if (containsAny(normalized, ["бага", "завгүй"])) return 10;
+  if (containsAny(normalized, ["өдөр бүр", "бүтэн"])) return 45;
   return 30;
 }
 
 function focusTrack(answers: StarterAnswers): FocusTrack {
-  const preferred = answers.growthPreferences.toLocaleLowerCase("mn-MN");
+  const preferred = normalizeMongolianIntent(answers.growthPreferences);
   const combined = `${answers.goal30Day} ${answers.primaryBlocker} ${preferred}`;
   const tracks: Array<{ track: FocusTrack; words: string[] }> = [
     { track: "follow_up", words: ["follow-up", "follow up", "фоллов", "эргэж холбог", "дахин холбог"] },
+    { track: "communication", words: ["public speaking", "presentation", "илтгэх", "илтгэл", "ярих чадвар", "ярих дасгал", "ярьдаг болох", "яриагаа", "олны өмнө ярих"] },
     { track: "discovery", words: ["discovery", "уулзалт", "борлуул", "асуулт", "ярилцлага"] },
     { track: "content", words: ["контент", "пост", "сошиал", "facebook", "instagram", "video", "reel"] },
-    { track: "team", words: ["баг", "удирд", "менеж", "coach", "director", "sponsor"] },
+    { track: "team", words: ["баг", "удирд", "менеж"] },
     { track: "learning", words: ["сургалт", "суралц", "ойлгох", "мэдлэг", "хичээл"] },
   ];
 
-  return tracks.find(({ words }) => containsAny(preferred, words))?.track
-    ?? tracks.find(({ words }) => containsAny(combined, words))?.track
+  return tracks.find(({ words }) => containsPositiveAny(preferred, words))?.track
+    ?? tracks.find(({ words }) => containsPositiveAny(combined, words))?.track
     ?? "general";
 }
 
@@ -46,6 +117,7 @@ function focusLabel(track: FocusTrack) {
     content: "контент",
     follow_up: "follow-up",
     discovery: "discovery уулзалт",
+    communication: "илтгэх ба харилцах чадвар",
     learning: "сургалт",
     team: "багийн удирдлага",
     general: "30 хоногийн зорилго",
@@ -131,6 +203,29 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
         commonReview,
       ],
       measures: ["Хийсэн discovery ярианы тоо", "Тодорхой болсон хэрэгцээний тоо", "Харилцан зөвшөөрсөн дараагийн алхмын тоо"],
+    };
+  }
+
+  if (track === "communication") {
+    return {
+      today: {
+        title: "Нэг минутын илтгэлээ бэлдэж, чангаар хэлэх",
+        detail: `${goal}-той холбоотой нэг гол санааг эхлэл, гол санаа, төгсгөл гэсэн 3 өгүүлбэрээр бич. ${minutes} минутад нэг удаа чангаар хэлээд хамгийн ойлгомжгүй нэг өгүүлбэрээ зас.`,
+      },
+      weekly: [
+        {
+          title: "Нэг минутын илтгэлийн 3 хэсгийг бичих",
+          detail: "Яагаад энэ сэдэв чухал, сонсогч юу ойлгох, дараа нь юу хийх гэсэн 3 өгүүлбэр бэлд.",
+          doneWhen: "Эхлэл, гол санаа, төгсгөл гэсэн 3 өгүүлбэр бичигдсэн байна.",
+        },
+        {
+          title: "Илтгэлээ бичиж аваад нэг удаа сайжруулах",
+          detail: "Утсаараа нэг минутын яриагаа бич. Дахин сонсоод хэт урт эсвэл ойлгомжгүй нэг хэсгийг зас.",
+          doneWhen: "Нэг бичлэг, зассан нэг хувилбар бэлэн болсон байна.",
+        },
+        commonReview,
+      ],
+      measures: ["Хийсэн нэг минутын дадлагын тоо", "Засаж сайжруулсан өгүүлбэрийн тоо", "Бусдаас авсан бодит feedback"],
     };
   }
 
@@ -246,11 +341,11 @@ export function createStarterPlan(
   const track = focusTrack(answers);
   const actionPlan = trackActions(track, answers, minutes);
   const recommendedLesson = chooseLesson(lessons, answers);
-  const wantsTeamManagement = containsAny(
+  const wantsTeamManagement = containsPositiveAny(
     `${answers.currentContext} ${answers.goal30Day} ${answers.growthPreferences}`,
-    ["баг", "удирд", "менеж", "coach", "director"],
+    ["баг", "удирд", "менеж"],
   );
-  const wantsContent = containsAny(
+  const wantsContent = containsPositiveAny(
     `${answers.goal30Day} ${answers.growthPreferences}`,
     ["контент", "пост", "сошиал", "facebook", "instagram", "video", "reel"],
   );
@@ -263,11 +358,15 @@ export function createStarterPlan(
   const whyThisPlan = `Эхний төвлөрөх чиглэл: ${focusLabel(track)}. Таны боломжит цаг (${answers.weeklyCapacity}) болон гол саад (${answers.primaryBlocker})-д тааруулж өнөөдөр хийх нэг ажил, энэ 7 хоногт дуусгах 3 алхам, шалгах үзүүлэлтийг ялгаж өглөө.`;
 
   return {
-    version: 2,
+    version: 3,
     generatedAt: new Date().toISOString(),
     profileSummary,
     whyThisPlan,
-    todayAction: { ...actionPlan.today, minutes },
+    todayAction: {
+      ...actionPlan.today,
+      minutes,
+      doneWhen: actionPlan.weekly[0]?.doneWhen ?? "Ажлыг хийж, гарсан үр дүнгээ нэг өгүүлбэрээр тэмдэглэсэн байна.",
+    },
     weeklyActions: actionPlan.weekly,
     managementPlan: {
       focus: wantsTeamManagement
@@ -280,7 +379,7 @@ export function createStarterPlan(
       ],
       measures: actionPlan.measures,
     },
-    contentPlan: {
+    contentPlan: wantsContent ? {
       pillars,
       sevenDayPlan: DAY_LABELS.map((day, index) => ({
         day,
@@ -299,7 +398,7 @@ export function createStarterPlan(
         "Албан мэдээлэл шаардсан claim бүрт Source Vault-ийн эх ашиглана.",
         "Нийтлэхээс өмнө хүн заавал хянана; auto-publish хийхгүй.",
       ],
-    },
+    } : null,
     academyRecommendation: recommendedLesson
       ? {
           lessonId: recommendedLesson.id,

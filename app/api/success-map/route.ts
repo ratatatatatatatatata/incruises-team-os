@@ -11,6 +11,7 @@ const payloadSchema = z.object({
   primaryBlocker: z.string().trim().min(10).max(1600),
   growthPreferences: z.string().trim().min(10).max(1600),
   aiConsent: z.boolean().default(false),
+  supportSummaryConsent: z.boolean().default(true),
 }).strict();
 
 function sameOrigin(request: Request) {
@@ -93,7 +94,9 @@ export async function POST(request: Request) {
   const planSource = personalized.usedAi ? "ai_gateway" : "deterministic";
   const aiModel = personalized.usedAi ? STARTER_PLAN_MODEL : null;
 
-  const { data: saved, error: saveError } = await supabase.rpc("complete_starter_success_map", {
+  const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
+  const rpcName = first30DayEnabled ? "complete_starter_success_map_v2" : "complete_starter_success_map";
+  const rpcPayload: Record<string, unknown> = {
     p_current_context: answers.currentContext,
     p_goal_30_day: answers.goal30Day,
     p_weekly_capacity: answers.weeklyCapacity,
@@ -103,7 +106,10 @@ export async function POST(request: Request) {
     p_plan_source: planSource,
     p_ai_consent: parsed.data.aiConsent,
     p_ai_model: aiModel,
-  });
+  };
+  if (first30DayEnabled) rpcPayload.p_support_summary_consent = parsed.data.supportSummaryConsent;
+
+  const { data: saved, error: saveError } = await supabase.rpc(rpcName, rpcPayload);
 
   if (saveError) {
     console.error("Starter success map save failed", saveError.code);

@@ -15,7 +15,7 @@ test("auth redirect accepts only same-origin relative paths", () => {
 });
 
 test("invite-only access gates membership and disables public sign-up", async () => {
-  const [login, signupPage, signupAction, currentUser, config, inviteTemplate, membershipMigration, inviteMigration, inviteFunction] = await Promise.all([
+  const [login, signupPage, signupAction, currentUser, config, inviteTemplate, membershipMigration, inviteMigration, inviteTriggerMigration, inviteFunction] = await Promise.all([
     readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/signup/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/signup/actions.ts", import.meta.url), "utf8"),
@@ -24,6 +24,7 @@ test("invite-only access gates membership and disables public sign-up", async ()
     readFile(new URL("../supabase/templates/invite.html", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260829062550_harden_membership_access.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260915213140_invite_only_success_map_v1.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260917173000_ensure_invite_only_auth_trigger.sql", import.meta.url), "utf8"),
     readFile(new URL("../supabase/functions/invite-member/index.ts", import.meta.url), "utf8"),
   ]);
 
@@ -43,6 +44,9 @@ test("invite-only access gates membership and disables public sign-up", async ()
   assert.match(inviteMigration, /invitation\.status in \('pending', 'sent'\)/);
   assert.match(inviteMigration, /if not found then\s+return new/);
   assert.match(inviteMigration, /onboarding_required = true/);
+  assert.match(inviteTriggerMigration, /create trigger on_auth_user_created_create_team_profile/);
+  assert.match(inviteTriggerMigration, /execute function private\.handle_new_team_user\(\)/);
+  assert.doesNotMatch(inviteTriggerMigration, /insert into public\.(user_profiles|team_members)/);
   assert.match(inviteFunction, /inviteUserByEmail/);
   assert.match(inviteFunction, /membership\.role !== "admin"/);
   assert.doesNotMatch(inviteFunction, /delete\(/);
@@ -121,17 +125,50 @@ test("starter advice is explicit, measurable and upgrade-safe", async () => {
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(planner, /type FocusTrack = "content" \| "follow_up" \| "discovery" \| "learning" \| "team" \| "general"/);
-  assert.match(planner, /version: 2/);
+  assert.match(planner, /type FocusTrack = "content" \| "follow_up" \| "discovery" \| "communication" \| "learning" \| "team" \| "general"/);
+  assert.match(planner, /version: 3/);
   assert.match(planner, /doneWhen/);
+  assert.match(planner, /normalizeMongolianIntent/);
+  assert.match(planner, /actionConflictsWithAnswers/);
   assert.match(ai, /weeklyActions/);
   assert.match(ai, /successMeasures/);
   assert.match(ai, /Хэрэглэгчийн хариултад байхгүй орлого, үр дүн, хүний тоо эсвэл амжилтын тоон зорилт зохиож болохгүй/);
-  assert.match(app, /ТАНЫ 5 ХАРИУЛТЫН ТОВЧ/);
+  assert.match(app, /ӨНӨӨДРИЙН НЭГ АЖИЛ/);
+  assert.match(app, /Start\/Done\/Blocked|Эхлэх|Тусламж хэрэгтэй/);
   assert.match(app, /Төлөвлөгөөг тодорхой болгох/);
-  assert.match(app, /Амжилтыг юугаар хэмжих вэ/);
+  assert.match(app, /Дууссан гэж үзэх шалгуур/);
   assert.match(route, /function sameOrigin/);
   assert.match(route, /contentLength > 32_000/);
+});
+
+test("first 30 day loop is additive, gated and relationship-scoped", async () => {
+  const [migration, indexMigration, workspace, app, env] = await Promise.all([
+    readFile(new URL("../supabase/migrations/20260917171558_first_30_days_member_support_loop.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260917173500_index_first_30_days_foreign_keys.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/team-os-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+  ]);
+
+  for (const table of ["member_actions", "member_action_events", "support_requests", "support_request_events", "member_academy_practices", "member_development_evidence", "external_rank_claims"]) {
+    assert.match(migration, new RegExp(`create table if not exists public\\.${table}`));
+    assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`));
+    assert.match(migration, new RegExp(`revoke all on table public\\.${table} from anon, authenticated`));
+  }
+  assert.match(migration, /current_user_is_direct_supporter/);
+  assert.match(migration, /member_success_summaries_sharing_gate[\s\S]*as restrictive/);
+  assert.doesNotMatch(migration, /drop table|truncate table|delete from/i);
+  assert.doesNotMatch(migration, /create trigger[^;]+external_rank_claims/i);
+  assert.doesNotMatch(migration, /update\s+public\.team_members[\s\S]{0,200}external_rank_claims/i);
+  for (const index of ["coach_notes_support_request_member_idx", "member_action_events_actor_idx", "support_request_events_actor_idx", "support_requests_checkin_idx"]) {
+    assert.match(indexMigration, new RegExp(`create index if not exists ${index}`));
+  }
+  assert.doesNotMatch(indexMigration, /drop|delete|truncate/i);
+  assert.match(workspace, /FIRST_30_DAY_LOOP_ENABLED/);
+  assert.match(env, /FIRST_30_DAY_LOOP_ENABLED=false/);
+  assert.match(app, /Түүхий 5 хариулт харагдахгүй/);
+  assert.match(app, /Rank мэдээллийг зөвхөн нотолгоотой бүртгэнэ/);
+  assert.match(app, /хэрэглэгчийн эрх, Academy access, зөвлөмжийг өөрчлөхгүй/);
 });
 
 test("production accepts Vercel Marketplace Supabase environment names", async () => {
