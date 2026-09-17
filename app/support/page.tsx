@@ -21,7 +21,7 @@ export default function SupportPage() {
           <section style={card}>
             <h2 style={{ marginTop: 0 }}>Sign-in help</h2>
             <p style={{ color: '#aec2d3', lineHeight: 1.7, marginBottom: 0 }}>
-              Confirm that you are using the email address registered for your team account. Passwords are case-sensitive. If your account was just created, complete any email-verification step before signing in.
+              Use the email address registered for your team account and your 8-digit PIN. Existing members can select the legacy-password option on the sign-in page. If your account was just created, complete the invitation link before signing in.
             </p>
           </section>
           <section style={card}>

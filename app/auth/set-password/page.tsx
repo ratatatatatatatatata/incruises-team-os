@@ -6,7 +6,7 @@ import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "../../brand";
 import { setPassword } from "./actions";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Нууц үг тохируулах" };
+export const metadata: Metadata = { title: "PIN код тохируулах" };
 
 export default async function SetPasswordPage({
   searchParams,
@@ -22,7 +22,7 @@ export default async function SetPasswordPage({
   const email = typeof claims?.email === "string" ? claims.email : null;
   const isAnonymous = claims?.is_anonymous === true || claims?.is_anonymous === "true";
   if (error || !claims?.sub || !email || isAnonymous) {
-    redirect("/login?error=Нууц үг тохируулах холбоос хүчингүй эсвэл хугацаа дууссан байна.");
+    redirect("/login?error=PIN код тохируулах холбоос хүчингүй эсвэл хугацаа дууссан байна.");
   }
 
   return (
@@ -31,15 +31,16 @@ export default async function SetPasswordPage({
         <div className="brand-mark" aria-hidden="true"><span /><span /><span /><span /></div>
         <p className="eyebrow">{recoveryFlow ? "PASSWORD RECOVERY" : "INVITE SETUP"}</p>
         <h1>{BRAND_NAME}<br />{PRODUCT_DESCRIPTOR}</h1>
-        <p className="signin-copy">{recoveryFlow ? "Сэргээх холбоос баталгаажлаа. Шинэ нууц үгээ тохируулна уу." : "Урилгын session баталгаажлаа. Шинэ нууц үгээ тохируулна уу."}</p>
+        <p className="signin-copy">{recoveryFlow ? "Сэргээх холбоос баталгаажлаа. Зөвхөн тооноос бүрдэх шинэ 8 оронтой PIN кодоо тохируулна уу." : "Урилга баталгаажлаа. Зөвхөн тооноос бүрдэх 8 оронтой PIN кодоо тохируулна уу."}</p>
         {params.error && <p className="auth-message error" role="alert">{params.error}</p>}
         <form className="signin-form">
           <input type="hidden" name="flow" value={recoveryFlow ? "recovery" : "invite"} />
-          <label>Шинэ нууц үг<input name="password" type="password" autoComplete="new-password" required minLength={12} maxLength={128} /></label>
-          <label>Нууц үг давтах<input name="confirmation" type="password" autoComplete="new-password" required minLength={12} maxLength={128} /></label>
-          <div className="signin-actions"><button className="primary-button" formAction={setPassword}>Нууц үг хадгалах</button></div>
+          <label>Шинэ 8 оронтой PIN<input name="password" type="password" inputMode="numeric" pattern="[0-9]{8}" autoComplete="new-password" required minLength={8} maxLength={8} aria-describedby="pin-help" /></label>
+          <label>PIN кодоо давтах<input name="confirmation" type="password" inputMode="numeric" pattern="[0-9]{8}" autoComplete="new-password" required minLength={8} maxLength={8} aria-describedby="pin-help" /></label>
+          <p className="signin-help" id="pin-help">8 цифр оруулна. Үсэг, зай болон тусгай тэмдэг ашиглахгүй.</p>
+          <div className="signin-actions"><button className="primary-button" formAction={setPassword}>PIN код хадгалах</button></div>
         </form>
-        <p className="signin-note">Имэйл: {email}</p>
+        <p className="signin-note">Имэйл: {email} · PIN кодоо бусадтай бүү хуваалцаарай.</p>
       </section>
     </main>
   );

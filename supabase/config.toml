@@ -8,6 +8,7 @@ extra_search_path = ["public", "extensions"]
 [auth]
 enabled = true
 enable_signup = false
+minimum_password_length = 8
 site_url = "https://www.insuccess.net"
 additional_redirect_urls = [
   "http://localhost:3000/auth/confirm",

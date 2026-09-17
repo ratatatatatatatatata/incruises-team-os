@@ -27,7 +27,7 @@ export default async function AccessPendingPage() {
         </p>
         <p className="auth-message success">{user.email}</p>
         <div className="signin-actions">
-          <Link className="primary-button" href="/auth/set-password">Нууц үг тохируулах</Link>
+          <Link className="primary-button" href="/auth/set-password">PIN код тохируулах</Link>
         </div>
         <form action="/auth/signout" method="post">
           <button className="secondary-button" type="submit">Гарах</button>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "../brand";
 import { login } from "./actions";
+import { LoginCredentialField } from "./login-credential-field";
 
 export const metadata: Metadata = { title: "Нэвтрэх" };
 
@@ -28,14 +29,14 @@ export default async function LoginPage({
 
         <form className="signin-form">
           <label>Имэйл<input name="email" type="email" autoComplete="email" required placeholder="name@example.com" /></label>
-          <label>Нууц үг<input name="password" type="password" autoComplete="current-password" required minLength={8} /></label>
-          <Link href="/auth/forgot-password">Нууц үгээ мартсан уу?</Link>
+          <LoginCredentialField />
+          <Link href="/auth/forgot-password">PIN код / нууц үгээ мартсан уу?</Link>
           <div className="signin-actions">
             <button className="primary-button" formAction={login} disabled={!configured}>Нэвтрэх</button>
           </div>
         </form>
         <p className="signin-switch">Эрх зөвхөн админы имэйл урилгаар үүснэ.</p>
-        <p className="signin-note">Урилга авсан бол имэйл дэх холбоосоор эхлээд нууц үгээ тохируулна уу.</p>
+        <p className="signin-note">Шинээр уригдсан хэрэглэгч 8 оронтой PIN код тохируулна. Өмнөх хэрэглэгчийн одоогийн нууц үг хэвээр ажиллана.</p>
       </section>
     </main>
   );

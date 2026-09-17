@@ -24,7 +24,7 @@ Production: <https://incruises-team-os.vercel.app>
 - Content Studio: draft → тусдаа reviewer → internal review → company approval reference workflow
 - Member Success даалгаврын самбар
 - Албан эх сурвалжийн Source Vault
-- Supabase email/password registration and authentication
+- Supabase invite-only email + 8 оронтой PIN authentication
 - New user profile + active user membership automation
 - Admin-only user directory with role and access management
 - Active team membership, role separation, least-privilege RLS policies
@@ -87,7 +87,7 @@ Invite template-ийн холбоос:
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password
 ```
 
-Hosted Supabase Auth дээр email sign-up-ийг ON, ашигладаггүй provider-уудыг OFF, leaked-password protection-ийг ON болгоно. Repository дахь `enable_signup = true` нь local parity; hosted setting-ийг Dashboard/Management API дээр тусад нь баталгаажуулна.
+Hosted Supabase Auth дээр email provider-ийг ON, public user sign-up-ийг OFF, minimum password length-ийг 8, leaked-password protection-ийг ON болгоно. Вебийн урилга болон сэргээх урсгал шинэ PIN-г яг 8 цифр эсэхийг server талд шалгана. Одоогийн хэрэглэгчдийн хуучин нууц үгийг автоматаар солихгүй бөгөөд дараагийн reset хүртэл хэвээр ажиллана.
 
 Шинэ auth user-д `public.user_profiles` болон идэвхтэй `user` membership автоматаар үүснэ. Админ шаардлагатай үед Builder, Coach, Director эсвэл Admin эрх олгоно. Role-г `user_metadata` эсвэл `user_profiles.role`-оос authorization-д ашиглахгүй.
 

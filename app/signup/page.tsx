@@ -12,7 +12,7 @@ export default function SignupPage() {
         <p className="eyebrow">INVITE-ONLY ACCESS</p>
         <h1>{BRAND_NAME}<br />{PRODUCT_DESCRIPTOR}</h1>
         <p className="signin-copy">inSuccess нь хаалттай багийн орчин. Хүссэн хүн өөрөө бүртгүүлэх боломжгүй бөгөөд админ таны имэйл рүү урилга илгээсний дараа л эрх нээгдэнэ.</p>
-        <p className="auth-message success" role="status">Урилга ирсэн бол имэйл дэх холбоосоор нууц үгээ тохируулна уу.</p>
+        <p className="auth-message success" role="status">Урилга ирсэн бол имэйл дэх холбоосоор 8 оронтой PIN кодоо тохируулна уу.</p>
         <div className="signin-actions"><Link className="primary-button" href="/login">Нэвтрэх хуудас руу буцах</Link></div>
       </section>
     </main>
