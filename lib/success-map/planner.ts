@@ -40,11 +40,23 @@ const NEGATION_WORDS = ["хэрэггүй", "хийхгүй", "сонирхол�
 
 function isNegated(value: string, word: string) {
   const normalized = normalizeMongolianIntent(value);
-  const target = normalizeMongolianIntent(word).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const negative = NEGATION_WORDS.join("|");
+  const target = normalizeMongolianIntent(word);
+
   return normalized
     .split(/[,.;!?]|\b(?:харин|гэхдээ)\b/iu)
-    .some((clause) => new RegExp(`(?:${target})(?:\\s+\\S+){0,3}\\s+(?:${negative})|(?:${negative})(?:\\s+\\S+){0,3}\\s+(?:${target})`, "iu").test(clause));
+    .some((clause) => {
+      const tokens = clause.match(/[\p{L}\p{N}-]+/gu) ?? [];
+      const targetIndexes = tokens.flatMap((token, index) =>
+        token === target || token.startsWith(target) ? [index] : [],
+      );
+      const negativeIndexes = tokens.flatMap((token, index) =>
+        NEGATION_WORDS.some((negative) => token === negative || token.startsWith(negative)) ? [index] : [],
+      );
+
+      return targetIndexes.some((targetIndex) =>
+        negativeIndexes.some((negativeIndex) => Math.abs(targetIndex - negativeIndex) <= 4),
+      );
+    });
 }
 
 function containsPositiveAny(value: string, words: string[]) {
@@ -88,7 +100,7 @@ function focusTrack(answers: StarterAnswers): FocusTrack {
   const combined = `${answers.goal30Day} ${answers.primaryBlocker} ${preferred}`;
   const tracks: Array<{ track: FocusTrack; words: string[] }> = [
     { track: "follow_up", words: ["follow-up", "follow up", "фоллов", "эргэж холбог", "дахин холбог"] },
-    { track: "communication", words: ["public speaking", "presentation", "илтгэх", "илтгэл", "ярих чадвар", "олны өмнө ярих"] },
+    { track: "communication", words: ["public speaking", "presentation", "илтгэх", "илтгэл", "ярих чадвар", "ярих дасгал", "ярьдаг болох", "яриагаа", "олны өмнө ярих"] },
     { track: "discovery", words: ["discovery", "уулзалт", "борлуул", "асуулт", "ярилцлага"] },
     { track: "content", words: ["контент", "пост", "сошиал", "facebook", "instagram", "video", "reel"] },
     { track: "team", words: ["баг", "удирд", "менеж"] },

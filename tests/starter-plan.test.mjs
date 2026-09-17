@@ -54,3 +54,19 @@ test("explicit content intent is required before creating a content plan", () =>
   assert.ok(content.contentPlan);
   assert.equal(content.contentPlan.sevenDayPlan.length, 7);
 });
+
+test("a declined content calendar cannot override an explicit speaking-practice request", () => {
+  const plan = createStarterPlan({
+    currentContext: "Бизнес хийхгүй. Зөвхөн ярих чадвараа хөгжүүлэхийг хүсэж байна.",
+    goal30Day: "30 хоногийн дотор 2 минут тасралтгүй, ойлгомжтой ярьдаг болох.",
+    weeklyCapacity: "Өдөр бүр 15 минут, оройн цагаар дасгал хийнэ.",
+    primaryBlocker: "Яриагаа яаж эхлэхээ мэдэхгүй, бүтэц дээр гацдаг. Өмнө нь зөвхөн бичиж бэлдэж үзсэн.",
+    growthPreferences: "Follow-up болон контентын календарь хэрэггүй. Зөвхөн 15 минутын ярих дасгал, эхлэх тодорхой алхам хэрэгтэй.",
+  }, []);
+  const actionText = `${plan.todayAction.title} ${plan.todayAction.detail}`;
+
+  assert.equal(plan.todayAction.minutes, 15);
+  assert.match(actionText, /илтгэл|чангаар хэлэх/i);
+  assert.doesNotMatch(actionText, /контент|ноорог|follow-up/i);
+  assert.equal(plan.contentPlan, null);
+});
