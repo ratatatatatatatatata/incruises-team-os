@@ -1,6 +1,6 @@
 begin;
 
-select plan(22);
+select plan(23);
 
 select has_table('public', 'member_actions', 'member_actions exists');
 select has_table('public', 'member_action_events', 'member_action_events exists');
