@@ -14,7 +14,7 @@ export type AcademyLessonCandidate = {
 };
 
 export type SuccessMapPlan = {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   generatedAt: string;
   profileSummary: string;
   whyThisPlan: string;
@@ -22,6 +22,7 @@ export type SuccessMapPlan = {
     title: string;
     detail: string;
     minutes: number;
+    doneWhen?: string;
   };
   weeklyActions: Array<{
     title: string;
@@ -40,7 +41,7 @@ export type SuccessMapPlan = {
       action: string;
     }>;
     guardrails: string[];
-  };
+  } | null;
   academyRecommendation: {
     lessonId: string;
     levelId: string;
@@ -60,6 +61,7 @@ export type StoredSuccessMap = {
   plan: SuccessMapPlan;
   planSource: "deterministic" | "ai_gateway";
   aiConsent: boolean;
+  supportSummaryConsent: boolean;
   completedAt: string;
   updatedAt: string;
 };

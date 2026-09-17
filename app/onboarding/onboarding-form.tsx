@@ -56,14 +56,16 @@ const QUESTIONS: Array<{
   },
 ];
 
-export function OnboardingForm({ displayName, initialAnswers, initialAiConsent }: {
+export function OnboardingForm({ displayName, initialAnswers, initialAiConsent, initialSupportSummaryConsent }: {
   displayName: string;
   initialAnswers: StarterAnswers | null;
   initialAiConsent: boolean;
+  initialSupportSummaryConsent: boolean;
 }) {
   const router = useRouter();
   const [answers, setAnswers] = useState(initialAnswers ?? EMPTY_ANSWERS);
   const [aiConsent, setAiConsent] = useState(initialAiConsent);
+  const [supportSummaryConsent, setSupportSummaryConsent] = useState(initialSupportSummaryConsent);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -87,7 +89,7 @@ export function OnboardingForm({ displayName, initialAnswers, initialAiConsent }
       const response = await fetch("/api/success-map", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...answers, aiConsent }),
+        body: JSON.stringify({ ...answers, aiConsent, supportSummaryConsent }),
       });
       const result = (await response.json().catch(() => ({}))) as { error?: string; aiFallbackReason?: string | null };
       if (!response.ok) throw new Error(result.error ?? "Төлөвлөгөөг хадгалж чадсангүй.");
@@ -107,7 +109,7 @@ export function OnboardingForm({ displayName, initialAnswers, initialAiConsent }
       <section className="onboarding-header">
         <p className="eyebrow cyan">2 МИНУТ · STARTER SUCCESS MAP</p>
         <h1>Сайн байна уу, {displayName}.</h1>
-        <p>Эдгээр 5 хариултаар таны эхний 7/30 хоногийн content ба management төлөвлөгөөг гаргана. Энэ нь засварлаж болдог ажлын эхлэл болохоос зан төлөвийн онош биш.</p>
+        <p>Эдгээр 5 хариултаар таны боломжит цагт багтсан өнөөдрийн нэг ажлыг гаргана. 7/30 хоногийн дэлгэрэнгүйг хүссэн үедээ нээж болно. Энэ нь зан төлөвийн онош биш.</p>
         <p className="onboarding-privacy">Таны бүрэн хариулт зөвхөн танд харагдана. Sponsor/coach-д зорилго, гол саад, хэрэгтэй тусламж болон явцын purpose-limited summary л харагдана.</p>
         <form action="/auth/signout" method="post"><button className="text-button" type="submit">Өөр аккаунтаар нэвтрэх / Гарах</button></form>
         <div className="onboarding-progress" aria-label={`${completed}/5 асуулт бөглөгдсөн`}>
@@ -135,6 +137,11 @@ export function OnboardingForm({ displayName, initialAnswers, initialAiConsent }
         <label className="ai-consent-card">
           <input type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} />
           <span><strong>Personal AI-аар илүү нарийвчлуулах</strong><small>Зөвшөөрвөл зөвхөн дээрх 5 хариулт, хамаарах Academy хичээлийн нэр AI Gateway руу явна. Имэйл, хэрэглэгчийн ID явуулахгүй. Зөвшөөрөхгүй бол дүрэмд суурилсан бүрэн төлөвлөгөө гарна.</small></span>
+        </label>
+
+        <label className="ai-consent-card">
+          <input type="checkbox" checked={supportSummaryConsent} onChange={(event) => setSupportSummaryConsent(event.target.checked)} />
+          <span><strong>Sponsor/coach-д дэмжлэгийн товч мэдээлэл хуваалцах</strong><small>Зөвшөөрвөл зорилго, боломжит цаг, одоогийн ажил, гацсан зүйл болон хүссэн тусламжийн purpose-limited summary харагдана. Таны түүхий 5 хариулт болон хувийн AI яриа харагдахгүй.</small></span>
         </label>
 
         {error && <p className="auth-message error" role="alert">{error}</p>}

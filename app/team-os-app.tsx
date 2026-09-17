@@ -8,6 +8,7 @@ import { AdminInvitations } from "./admin-invitations";
 type Section = "overview" | "my-path" | "academy" | "content" | "members" | "vault" | "users";
 
 const emptyWorkspace: WorkspacePayload = {
+  first30DayEnabled: false,
   viewer: { userId: "", role: "user", canReview: false, canRecordCorporateApproval: false },
   progress: [],
   lessons: [],
@@ -17,6 +18,11 @@ const emptyWorkspace: WorkspacePayload = {
   supportMembers: [],
   myCheckins: [],
   coachNotes: [],
+  activeAction: null,
+  myActionHistory: [],
+  supportRequests: [],
+  academyPractices: [],
+  rankClaims: [],
   successMap: null,
 };
 
@@ -217,6 +223,12 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
           {section === "my-path" && (
             <SuccessMapPanel
               successMap={workspace.successMap}
+              activeAction={workspace.activeAction}
+              actionHistory={workspace.myActionHistory}
+              supportRequests={workspace.supportRequests.filter((request) => request.memberUserId === workspace.viewer.userId)}
+              academyPractices={workspace.academyPractices.filter((practice) => practice.memberUserId === workspace.viewer.userId)}
+              lessons={workspace.lessons}
+              first30DayEnabled={workspace.first30DayEnabled}
               checkins={workspace.myCheckins}
               coachNotes={workspace.coachNotes.filter((note) => note.memberUserId === workspace.viewer.userId)}
               saving={saving}
@@ -352,8 +364,8 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
 
           {section === "members" && (
             <section className="section-stack">
-              <div className="section-intro"><div><p className="eyebrow blue">SPONSOR · COACH CONTROL</p><h2>Хэн хэний багт, юун дээр тусламж хэрэгтэйг нэг дор харна.</h2><p>Зөвхөн танд хуваарилагдсан гишүүний coaching summary, weekly check-in, blocker болон тусламжийн хүсэлт харагдана.</p></div><div className="summary-pill"><strong>{workspace.supportMembers.length}</strong><span>хариуцсан хүн</span></div></div>
-              <TeamSupportPanel members={workspace.supportMembers} notes={workspace.coachNotes} saving={saving} onAction={runAction} />
+              <div className="section-intro"><div><p className="eyebrow blue">SPONSOR · COACH CONTROL</p><h2>Өнөөдөр хэнд, юугаар туслах хэрэгтэй вэ?</h2><p>Тусламж хүссэн, хариу хүлээж буй гишүүд эхэнд эрэмбэлэгдэнэ. Түүхий таван хариулт болон хувийн AI яриа харагдахгүй.</p></div><div className="summary-pill"><strong>{workspace.supportRequests.filter((request) => !["member_confirmed", "closed"].includes(request.status)).length}</strong><span>нээлттэй хүсэлт</span></div></div>
+              <TeamSupportPanel members={workspace.supportMembers} notes={workspace.coachNotes} supportRequests={workspace.supportRequests} practices={workspace.academyPractices} saving={saving} onAction={runAction} />
               <div className="lifecycle"><div><b>0–72 цаг</b><span>Welcome + зорилго</span></div><div><b>30 хоног</b><span>Readiness + blocker</span></div><div><b>60 хоног</b><span>Value review</span></div><div><b>90 хоног</b><span>Next plan</span></div></div>
               <div className="member-layout">
                 <form className="panel form-panel" onSubmit={submitMemberTask}>
@@ -383,8 +395,11 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
           {section === "users" && user.role === "admin" && (
             <UserDirectory
               users={workspace.users}
+              rankClaims={workspace.rankClaims}
+              first30DayEnabled={workspace.first30DayEnabled}
               currentEmail={user.email}
               saving={saving}
+              onAction={runAction}
               onUpdate={(member) => runAction({
                 action: "update_user",
                 userId: member.id,
@@ -465,9 +480,11 @@ function LessonDialog({ lesson, done, isAdmin, saving, onClose, onToggle, onSave
   );
 }
 
-function TeamSupportPanel({ members, notes, saving, onAction }: {
+function TeamSupportPanel({ members, notes, supportRequests, practices, saving, onAction }: {
   members: WorkspacePayload["supportMembers"];
   notes: WorkspacePayload["coachNotes"];
+  supportRequests: WorkspacePayload["supportRequests"];
+  practices: WorkspacePayload["academyPractices"];
   saving: boolean;
   onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
@@ -477,11 +494,17 @@ function TeamSupportPanel({ members, notes, saving, onAction }: {
 
   return (
     <div className="support-member-grid">
-      {members.map((member) => (
+      {[...members].sort((left, right) => {
+        const leftOpen = supportRequests.some((request) => request.memberUserId === left.id && !["member_confirmed", "closed"].includes(request.status));
+        const rightOpen = supportRequests.some((request) => request.memberUserId === right.id && !["member_confirmed", "closed"].includes(request.status));
+        return Number(rightOpen) - Number(leftOpen);
+      }).map((member) => (
         <SupportMemberCard
           key={member.id}
           member={member}
           notes={notes.filter((note) => note.memberUserId === member.id)}
+          requests={supportRequests.filter((request) => request.memberUserId === member.id)}
+          practices={practices.filter((practice) => practice.memberUserId === member.id)}
           saving={saving}
           onAction={onAction}
         />
@@ -490,23 +513,54 @@ function TeamSupportPanel({ members, notes, saving, onAction }: {
   );
 }
 
-function SupportMemberCard({ member, notes, saving, onAction }: {
+function SupportMemberCard({ member, notes, requests, practices, saving, onAction }: {
   member: WorkspacePayload["supportMembers"][number];
   notes: WorkspacePayload["coachNotes"];
+  requests: WorkspacePayload["supportRequests"];
+  practices: WorkspacePayload["academyPractices"];
   saving: boolean;
   onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
   const [note, setNote] = useState("");
   const [nextAction, setNextAction] = useState("");
   const [visibleToMember, setVisibleToMember] = useState(true);
-  const attention = member.onboardingRequired ? "onboarding" : member.latestCheckin?.needsHelp ? "urgent" : member.latestCheckin ? "normal" : "attention";
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [practiceFeedback, setPracticeFeedback] = useState("");
+  const [competencyLabel, setCompetencyLabel] = useState("");
+  const openRequest = requests.find((request) => !["member_confirmed", "closed"].includes(request.status)) ?? null;
+  const submittedPractice = practices.find((practice) => practice.status === "submitted") ?? null;
+  const attention = openRequest ? "urgent" : member.onboardingRequired ? "onboarding" : member.latestCheckin?.needsHelp ? "urgent" : member.latestCheckin ? "normal" : "attention";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (note.trim().length < 3) return;
-    if (!await onAction({ action: "add_coach_note", memberUserId: member.id, note, nextAction, visibleToMember }, `${member.displayName}-д зөвлөгөө хадгалагдлаа.`)) return;
+    if (!await onAction({ action: "add_coach_note", memberUserId: member.id, supportRequestId: openRequest?.id ?? null, note, nextAction, visibleToMember }, `${member.displayName}-д зөвлөгөө хадгалагдлаа.`)) return;
     setNote("");
     setNextAction("");
+  }
+
+  async function advanceSupport(nextStatus: "acknowledged" | "in_progress" | "resolved") {
+    if (nextStatus === "resolved" && resolutionNote.trim().length < 3) return;
+    const success = await onAction({
+      action: "advance_support_request",
+      supportRequestId: openRequest?.id,
+      nextStatus,
+      resolutionNote,
+    }, nextStatus === "resolved" ? "Тусламжийн шийдлийг гишүүнд баталгаажуулахаар илгээлээ." : "Тусламжийн хүсэлтийн төлөв шинэчлэгдлээ.");
+    if (success && nextStatus === "resolved") setResolutionNote("");
+  }
+
+  async function reviewPractice(event: FormEvent) {
+    event.preventDefault();
+    if (!submittedPractice || practiceFeedback.trim().length < 3) return;
+    if (!await onAction({
+      action: "review_academy_practice",
+      practiceId: submittedPractice.id,
+      feedback: practiceFeedback,
+      competencyLabel: competencyLabel || null,
+    }, `${member.displayName}-ийн дадлагын feedback хадгалагдлаа.`)) return;
+    setPracticeFeedback("");
+    setCompetencyLabel("");
   }
 
   return (
@@ -514,8 +568,23 @@ function SupportMemberCard({ member, notes, saving, onAction }: {
       <header className="support-member-header">
         <div className="user-avatar">{member.displayName.charAt(0).toUpperCase()}</div>
         <div><h3>{member.displayName}</h3><p>{member.teamName} · {member.role}</p><small>Sponsor: {member.sponsorName ?? "оноогоогүй"} · Coach: {member.coachName ?? "оноогоогүй"}</small></div>
-        <span className={`support-state ${attention}`}>{member.onboardingRequired ? "Onboarding" : member.latestCheckin?.needsHelp ? "Тусламж хүссэн" : member.latestCheckin ? "Явцтай" : "Check-in хүлээж байна"}</span>
+        <span className={`support-state ${attention}`}>{openRequest ? "Тусламж хүлээж байна" : member.onboardingRequired ? "Onboarding" : member.latestCheckin?.needsHelp ? "Тусламж хүссэн" : member.latestCheckin ? "Явцтай" : "Check-in хүлээж байна"}</span>
       </header>
+
+      {openRequest && (
+        <section className="support-case">
+          <div><p className="eyebrow blue">ШУУД ТУСЛАМЖИЙН ХҮСЭЛТ</p><span className={`support-state ${openRequest.status}`}>{supportStatusLabel(openRequest.status)}</span></div>
+          <h4>{supportTypeLabel(openRequest.requestType)}</h4>
+          <p>{openRequest.requestText}</p>
+          {openRequest.nextCheckAt && <small>Дараагийн шалгах хугацаа: {new Date(openRequest.nextCheckAt).toLocaleString("mn-MN")}</small>}
+          <div className="support-controls">
+            {["assigned", "unassigned"].includes(openRequest.status) && <button className="secondary-button" type="button" disabled={saving} onClick={() => void advanceSupport("acknowledged")}>Хүсэлтийг хүлээж авсан</button>}
+            {["assigned", "unassigned", "acknowledged"].includes(openRequest.status) && <button className="secondary-button" type="button" disabled={saving} onClick={() => void advanceSupport("in_progress")}>Шийдэж эхлэх</button>}
+          </div>
+          {["acknowledged", "in_progress"].includes(openRequest.status) && <label>Өгсөн шийдэл<textarea value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} maxLength={1600} placeholder="Ямар тусламж өгсөн, дараагийн алхам юу вэ?" /></label>}
+          {["acknowledged", "in_progress"].includes(openRequest.status) && <button className="primary-button" type="button" disabled={saving || resolutionNote.trim().length < 3} onClick={() => void advanceSupport("resolved")}>Шийдлийг гишүүнээр баталгаажуулах</button>}
+        </section>
+      )}
 
       {member.summary ? (
         <div className="support-summary">
@@ -536,6 +605,17 @@ function SupportMemberCard({ member, notes, saving, onAction }: {
         </div>
       )}
 
+      {submittedPractice && (
+        <form className="practice-review-form" onSubmit={reviewPractice}>
+          <p className="eyebrow blue">ACADEMY PRACTICE REVIEW</p>
+          <h4>{submittedPractice.lessonId}</h4>
+          <blockquote>{submittedPractice.submission}</blockquote>
+          <label>Feedback<textarea value={practiceFeedback} onChange={(event) => setPracticeFeedback(event.target.value)} maxLength={1600} required /></label>
+          <label>Нотлох чадвар (заавал биш)<input value={competencyLabel} onChange={(event) => setCompetencyLabel(event.target.value)} maxLength={160} placeholder="Жишээ: Discovery асуултыг бодитоор ашигласан" /></label>
+          <button className="secondary-button" type="submit" disabled={saving || practiceFeedback.trim().length < 3}>Дадлагыг хянаж дуусгах</button>
+        </form>
+      )}
+
       <form className="coach-note-form" onSubmit={submit}>
         <label>Зөвлөгөө<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1600} placeholder="Юуг ойлгуулах, юун дээр дэмжих вэ?" required /></label>
         <label>Дараагийн алхам<input value={nextAction} onChange={(event) => setNextAction(event.target.value)} maxLength={800} placeholder="Жишээ: L1 хичээлийг үзээд 15 минут ярилцах" /></label>
@@ -549,12 +629,23 @@ function SupportMemberCard({ member, notes, saving, onAction }: {
   );
 }
 
-function UserDirectory({ users, currentEmail, saving, onUpdate }: {
+function UserDirectory({ users, rankClaims, first30DayEnabled, currentEmail, saving, onAction, onUpdate }: {
   users: WorkspacePayload["users"];
+  rankClaims: WorkspacePayload["rankClaims"];
+  first30DayEnabled: boolean;
   currentEmail: string;
   saving: boolean;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
   onUpdate: (member: WorkspacePayload["users"][number]) => Promise<boolean>;
 }) {
+  const [rankForm, setRankForm] = useState({ memberUserId: "", claimedLabel: "", sourceKind: "official_back_office", evidenceReference: "" });
+
+  async function submitRankClaim(event: FormEvent) {
+    event.preventDefault();
+    if (!await onAction({ action: "record_rank_claim", ...rankForm }, "Rank-ийн нотолгоо pending төлөвөөр бүртгэгдлээ.")) return;
+    setRankForm((current) => ({ ...current, claimedLabel: "", evidenceReference: "" }));
+  }
+
   return (
     <section className="section-stack">
       <div className="section-intro">
@@ -562,6 +653,19 @@ function UserDirectory({ users, currentEmail, saving, onUpdate }: {
         <div className="summary-pill"><strong>{users.length}</strong><span>нийт хэрэглэгч</span></div>
       </div>
       <AdminInvitations users={users} />
+      {first30DayEnabled && (
+        <article className="panel rank-evidence-panel">
+          <div className="panel-heading"><div><p className="eyebrow blue">EXTERNAL RANK EVIDENCE</p><h3>Rank мэдээллийг зөвхөн нотолгоотой бүртгэнэ</h3><p>Энд бүртгэсэн rank нь pending төлөвтэй бөгөөд хэрэглэгчийн эрх, Academy access, зөвлөмжийг өөрчлөхгүй.</p></div><span className="count-badge">{rankClaims.length}</span></div>
+          <form className="rank-evidence-form" onSubmit={submitRankClaim}>
+            <label>Гишүүн<select value={rankForm.memberUserId} onChange={(event) => setRankForm({ ...rankForm, memberUserId: event.target.value })} required><option value="">Сонгох</option>{users.filter((item) => item.status === "active").map((item) => <option key={item.id} value={item.id}>{item.displayName} · {item.email}</option>)}</select></label>
+            <label>Албан rank нэр<input value={rankForm.claimedLabel} onChange={(event) => setRankForm({ ...rankForm, claimedLabel: event.target.value })} maxLength={120} required /></label>
+            <label>Эх үүсвэр<select value={rankForm.sourceKind} onChange={(event) => setRankForm({ ...rankForm, sourceKind: event.target.value })}><option value="official_back_office">Official back office</option><option value="official_document">Official document</option><option value="other_official">Бусад албан эх</option></select></label>
+            <label>Нотолгооны reference<input value={rankForm.evidenceReference} onChange={(event) => setRankForm({ ...rankForm, evidenceReference: event.target.value })} maxLength={500} placeholder="URL, document ID эсвэл review reference" required /></label>
+            <button className="secondary-button" type="submit" disabled={saving || !rankForm.memberUserId || rankForm.claimedLabel.trim().length < 2 || rankForm.evidenceReference.trim().length < 3}>Pending нотолгоо бүртгэх</button>
+          </form>
+          {rankClaims.length > 0 && <div className="rank-claim-list">{rankClaims.slice(0, 8).map((claim) => <div key={claim.id}><strong>{claim.claimedLabel}</strong><span>{users.find((item) => item.id === claim.memberUserId)?.displayName ?? "Unknown member"}</span><small>{claim.status} · {claim.sourceKind} · {new Date(claim.createdAt).toLocaleDateString("mn-MN")}</small></div>)}</div>}
+        </article>
+      )}
       <article className="panel user-directory">
         {users.length === 0 ? <EmptyState title="Хэрэглэгч алга" copy="Эхний хэрэглэгч бүртгүүлсний дараа энд харагдана." /> : users.map((item) => {
           const isCurrent = item.email === currentEmail;
@@ -605,7 +709,7 @@ function Overview({ progressPercent, completed, total, pendingTasks, drafts, suc
     </div>
     <div className="metric-grid"><Metric label="Сургалт" value={`${completed}/${total}`} copy="completion бүртгэл" tone="blue" /><Metric label="Member Success" value={String(pendingTasks.length)} copy="нээлттэй ажиллагаа" tone="cyan" /><Metric label="Контент" value={String(reviewCount)} copy="тусдаа хяналт хүлээж байна" tone="violet" /><Metric label="Approval ref" value={String(approvedCount)} copy="reference бүртгэлтэй" tone="green" /></div>
     <div className="overview-grid">
-      <article className="panel focus-panel personal-focus"><div className="panel-heading"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h3>{successMap ? successMap.plan.todayAction.title : "Миний замаа нээх"}</h3></div><span className="tag">{successMap ? `${successMap.plan.todayAction.minutes} мин` : "5 асуулт"}</span></div><p>{successMap ? successMap.plan.todayAction.detail : "5 хариултаар 7/30 хоногийн content ба management төлөвлөгөөг үүсгэнэ."}</p><button className="text-button" onClick={() => onNavigate("my-path")}>{successMap ? "Бүх төлөвлөгөө →" : "Эхлүүлэх →"}</button></article>
+      <article className="panel focus-panel personal-focus"><div className="panel-heading"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h3>{successMap ? successMap.plan.todayAction.title : "Миний замаа нээх"}</h3></div><span className="tag">{successMap ? `${successMap.plan.todayAction.minutes} мин` : "5 асуулт"}</span></div><p>{successMap ? successMap.plan.todayAction.detail : "5 хариултаас таны боломжит цагт багтсан, дуусах шалгууртай нэг эхний ажлыг гаргана."}</p><button className="text-button" onClick={() => onNavigate("my-path")}>{successMap ? "Өнөөдрийн ажлаа нээх →" : "Эхлүүлэх →"}</button></article>
       <article className="panel focus-panel"><div className="panel-heading"><div><p className="eyebrow blue">NEXT BEST ACTION</p><h3>L0 · Компани ба нөхцөл</h3></div><span className="tag">35 мин</span></div><p>Багийн бүх ярианы суурь: Member ба Partner-ийн ялгаа, зөв хүлээлт, амлалтгүй тайлбар.</p><div className="mini-progress"><span style={{ width: `${progressPercent}%` }} /></div><button className="text-button" onClick={() => onSelectLevel(0)}>Хичээл нээх →</button></article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">MEMBER SUCCESS</p><h3>Анхаарах дараалал</h3></div><button className="text-button" onClick={() => onNavigate("members")}>Бүгдийг харах</button></div>{pendingTasks.length === 0 ? <EmptyState title="Task нэмээгүй байна" copy="72 цагийн onboarding-оос эхэлнэ үү." /> : pendingTasks.slice(0, 3).map((task) => <div className="compact-row" key={task.id}><span className={`risk-dot ${task.risk}`} /><div><strong>{task.memberName}</strong><small>{task.nextAction}</small></div><b>{task.dueLabel}</b></div>)}</article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">CONTENT GUARD</p><h3>Нийтлэх урсгал</h3></div><button className="text-button" onClick={() => onNavigate("content")}>Studio нээх</button></div>{drafts.length === 0 ? <EmptyState title="Ноорог алга" copy="Албан эх сурвалжтай контент үүсгэнэ үү." /> : drafts.slice(0, 3).map((draft) => <div className="compact-row" key={draft.id}><Status status={draft.status} /><div><strong>{draft.title}</strong><small>{draft.channel}</small></div><b>→</b></div>)}</article>
@@ -614,8 +718,14 @@ function Overview({ progressPercent, completed, total, pendingTasks, drafts, suc
   </section>;
 }
 
-function SuccessMapPanel({ successMap, checkins, coachNotes, saving, onAction }: {
+function SuccessMapPanel({ successMap, activeAction, actionHistory, supportRequests, academyPractices, lessons, first30DayEnabled, checkins, coachNotes, saving, onAction }: {
   successMap: WorkspacePayload["successMap"];
+  activeAction: WorkspacePayload["activeAction"];
+  actionHistory: WorkspacePayload["myActionHistory"];
+  supportRequests: WorkspacePayload["supportRequests"];
+  academyPractices: WorkspacePayload["academyPractices"];
+  lessons: WorkspacePayload["lessons"];
+  first30DayEnabled: boolean;
   checkins: WorkspacePayload["myCheckins"];
   coachNotes: WorkspacePayload["coachNotes"];
   saving: boolean;
@@ -624,32 +734,171 @@ function SuccessMapPanel({ successMap, checkins, coachNotes, saving, onAction }:
   if (!successMap) {
     return (
       <section className="section-stack">
-        <div className="section-intro"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h2>5 хариултаар ажлын замаа тодруул.</h2><p>Starter profile, өнөөдрийн алхам, 7 хоногийн content rhythm, 30 хоногийн management focus гарна.</p></div><div className="summary-pill"><strong>5</strong><span>үндсэн асуулт</span></div></div>
+        <div className="section-intro"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h2>5 хариултаар эхний ажлаа тодруул.</h2><p>Таны зорилго, цаг, саад, хүссэн тусламжид таарсан нэг ойлгомжтой ажил эхэлж гарна. Дэлгэрэнгүй төлөвлөгөө тусдаа хадгалагдана.</p></div><div className="summary-pill"><strong>5</strong><span>үндсэн асуулт</span></div></div>
         <article className="panel map-empty"><span className="shield">◉</span><h3>Таны Success Map хараахан үүсээгүй байна</h3><p>Хариултаа хүссэн үедээ засварлаж, төлөвлөгөөг дахин шинэчилж болно.</p><a className="primary-button" href="/onboarding">5 асуултаа эхлүүлэх</a></article>
       </section>
     );
   }
 
   const plan = successMap.plan;
+  const activePractice = activeAction
+    ? academyPractices.find((practice) => practice.actionId === activeAction.id) ?? null
+    : null;
+  const currentSupportRequest = activeAction
+    ? supportRequests.find((request) => request.actionId === activeAction.id && !["member_confirmed", "closed"].includes(request.status)) ?? null
+    : null;
   return (
     <section className="section-stack success-map-section">
-      <div className="section-intro"><div><p className="eyebrow cyan">ХУВИЙН АЖЛЫН ЗУРАГ</p><h2>Одоо юу хийх нь нэг хараад ойлгогдоно.</h2><p>{plan.whyThisPlan}</p></div><div className="summary-pill"><strong>{successMap.planSource === "ai_gateway" ? "AI" : "Rule"}</strong><span>{new Date(successMap.updatedAt).toLocaleDateString("mn-MN")} шинэчилсэн</span></div></div>
+      <div className="section-intro"><div><p className="eyebrow cyan">ӨНӨӨДРИЙН НЭГ АЖИЛ</p><h2>Одоо хийх зүйл нэг хараад ойлгогдоно.</h2><p>Энэ ажлыг хийсэн эсвэл гацсан үедээ тэмдэглэнэ. Дараагийн зөвлөгөө бодит үр дүнд тулгуурлана.</p></div><div className="summary-pill"><strong>{successMap.planSource === "ai_gateway" ? "AI" : "Rule"}</strong><span>{new Date(successMap.updatedAt).toLocaleDateString("mn-MN")} шинэчилсэн</span></div></div>
       {plan.version < 2 && <article className="plan-upgrade-note"><div><strong>Энэ төлөвлөгөө өмнөх ерөнхий загвараар үүссэн байна.</strong><p>Хариултаа өөрчлөхгүйгээр шинэчилж хадгалахад чиглэлдээ таарсан, дуусах шалгууртай шинэ төлөвлөгөө гарна.</p></div><a className="primary-button" href="/onboarding">Төлөвлөгөөг тодорхой болгох</a></article>}
-      <article className="answer-brief panel"><div className="panel-heading"><div><p className="eyebrow blue">ТАНЫ 5 ХАРИУЛТЫН ТОВЧ</p><h3>Төлөвлөгөө юунд тулгуурласныг эхлээд харна.</h3></div></div><div className="answer-brief-grid"><div><span>Одоогийн нөхцөл</span><strong>{successMap.answers.currentContext}</strong></div><div><span>30 хоногийн хүссэн үр дүн</span><strong>{successMap.answers.goal30Day}</strong></div><div><span>Ажиллах боломжит цаг</span><strong>{successMap.answers.weeklyCapacity}</strong></div><div><span>Гол саад</span><strong>{successMap.answers.primaryBlocker}</strong></div><div><span>Sponsor / coach-оос хэрэгтэй тусламж</span><strong>{successMap.answers.growthPreferences}</strong></div></div></article>
-      <article className="command-hero map-profile"><div><p className="eyebrow cyan">ЯАГААД ЭНЭ ТӨЛӨВЛӨГӨӨ ВЭ?</p><h3>{plan.profileSummary}</h3><p>Энэ бол таны 5 хариултад суурилсан, хүссэн үедээ засварлаж болох ажлын эхлэл; зан төлөвийн онош биш.</p><div className="hero-actions"><a className="primary-button" href="/onboarding">5 хариулт ба төлөвлөгөөг засах</a></div></div><div className="progress-orbit map-orbit"><div><strong>{plan.todayAction.minutes}</strong><span>минутын эхний алхам</span></div></div></article>
-      <div className="success-map-grid">
-        <article className="panel map-today"><p className="eyebrow blue">1 · ӨНӨӨДӨР ЭНЭ АЖЛЫГ ХИЙ</p><h3>{plan.todayAction.title}</h3><p>{plan.todayAction.detail}</p></article>
-        <article className="panel"><p className="eyebrow blue">2 · ЭНЭ 7 ХОНОГТ 3 АЖИЛ ДУУСГА</p><div className="map-list">{plan.weeklyActions.map((action, index) => <div key={`${action.title}-${index}`}><span>{index + 1}</span><div><strong>{action.title}</strong><p>{action.detail}</p><small>✓ Дууссан гэж үзэх: {action.doneWhen}</small></div></div>)}</div></article>
-        <article className="panel"><p className="eyebrow blue">3 · 30 ХОНОГИЙН АЖЛЫН ХЭМНЭЛ</p><h3>Төвлөрөх 3 зүйл</h3><ul className="map-bullets">{plan.managementPlan.focus.map((item) => <li key={item}>{item}</li>)}</ul><h4>Хэзээ шалгах вэ?</h4><ul className="map-bullets muted">{plan.managementPlan.cadence.map((item) => <li key={item}>{item}</li>)}</ul><h4>Амжилтыг юугаар хэмжих вэ?</h4><ul className="map-bullets muted">{plan.managementPlan.measures.map((item) => <li key={item}>{item}</li>)}</ul></article>
-        <article className="panel"><p className="eyebrow blue">4 · 7 ӨДРИЙН КОНТЕНТЫН АЛХАМ</p><h3>Өдөр бүр хийх нэг ажил</h3><div className="content-calendar">{plan.contentPlan.sevenDayPlan.map((item) => <div key={item.day}><strong>{item.day}</strong><span>{item.action}</span></div>)}</div><h4>Контентын 3 чиглэл</h4><div className="pillar-list">{plan.contentPlan.pillars.map((item) => <span key={item}>{item}</span>)}</div></article>
-      </div>
-      <div className="success-map-grid lower">
-        <article className="panel"><p className="eyebrow blue">ACADEMY NEXT</p>{plan.academyRecommendation ? <><h3>{plan.academyRecommendation.title}</h3><p>{plan.academyRecommendation.reason}</p><span className="tag">{plan.academyRecommendation.levelId} · {plan.academyRecommendation.minutes} мин</span></> : <p>Одоогоор дуусаагүй, тохирох нийтлэгдсэн хичээл олдсонгүй.</p>}</article>
-        <article className="panel guard-panel"><div><span className="shield">✓</span><p className="eyebrow cyan">HUMAN CONTROL</p><h3>Төлөвлөгөө автоматаар нийтлэхгүй</h3><p>Контент бүр Source Vault ба хүний review-г дамжина. Орлого, үр дүнгийн баталгаагүй амлалт хийхгүй.</p></div></article>
-      </div>
+      <MemberActionCard
+        key={activeAction?.id ?? successMap.updatedAt}
+        activeAction={activeAction}
+        fallbackAction={plan.todayAction}
+        currentSupportRequest={currentSupportRequest}
+        resourceTitle={activeAction?.resourceLessonId ? lessons.find((lesson) => lesson.id === activeAction.resourceLessonId)?.title ?? null : plan.academyRecommendation?.title ?? null}
+        first30DayEnabled={first30DayEnabled}
+        saving={saving}
+        onAction={onAction}
+      />
+      {activePractice && <MemberPracticeCard key={activePractice.id} practice={activePractice} saving={saving} onAction={onAction} />}
+      {supportRequests.some((request) => request.status === "resolved") && (
+        <article className="panel support-confirmation"><p className="eyebrow blue">ТУСЛАМЖИЙН ҮР ДҮН</p><h3>Өгсөн тусламж хэрэг болсон уу?</h3>{supportRequests.filter((request) => request.status === "resolved").map((request) => <div key={request.id}><p>{request.resolutionNote}</p><div className="action-buttons"><button className="primary-button" disabled={saving} onClick={() => void onAction({ action: "confirm_support_request", supportRequestId: request.id, helpful: true }, "Тус болсон гэж тэмдэглэлээ.")}>Тийм, тус болсон</button><button className="secondary-button" disabled={saving} onClick={() => void onAction({ action: "confirm_support_request", supportRequestId: request.id, helpful: false }, "Өөр арга хэрэгтэй гэж тэмдэглэлээ.")}>Үгүй, өөр арга хэрэгтэй</button></div></div>)}</article>
+      )}
+      <details className="panel plan-details">
+        <summary>Миний 5 хариулт ба 7/30 хоногийн дэлгэрэнгүйг харах</summary>
+        <article className="answer-brief"><div className="answer-brief-grid"><div><span>Одоогийн нөхцөл</span><strong>{successMap.answers.currentContext}</strong></div><div><span>30 хоногийн хүссэн үр дүн</span><strong>{successMap.answers.goal30Day}</strong></div><div><span>Ажиллах боломжит цаг</span><strong>{successMap.answers.weeklyCapacity}</strong></div><div><span>Гол саад</span><strong>{successMap.answers.primaryBlocker}</strong></div><div><span>Sponsor / coach-оос хэрэгтэй тусламж</span><strong>{successMap.answers.growthPreferences}</strong></div></div></article>
+        <div className="plan-detail-copy"><h3>{plan.profileSummary}</h3><p>{plan.whyThisPlan}</p><a className="text-button" href="/onboarding">5 хариултаа засах →</a></div>
+        <div className="success-map-grid">
+          <article><p className="eyebrow blue">7 ХОНОГИЙН АЛХАМ</p><div className="map-list">{plan.weeklyActions.map((item, index) => <div key={`${item.title}-${index}`}><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.detail}</p><small>✓ {item.doneWhen}</small></div></div>)}</div></article>
+          <article><p className="eyebrow blue">30 ХОНОГИЙН ХЭМНЭЛ</p><ul className="map-bullets">{plan.managementPlan.focus.map((item) => <li key={item}>{item}</li>)}</ul><h4>Хэзээ шалгах вэ?</h4><ul className="map-bullets muted">{plan.managementPlan.cadence.map((item) => <li key={item}>{item}</li>)}</ul></article>
+          {plan.contentPlan && <article><p className="eyebrow blue">ХҮССЭН КОНТЕНТЫН ТӨЛӨВЛӨГӨӨ</p><div className="content-calendar">{plan.contentPlan.sevenDayPlan.map((item) => <div key={item.day}><strong>{item.day}</strong><span>{item.action}</span></div>)}</div></article>}
+        </div>
+      </details>
+      {actionHistory.length > 0 && <article className="panel action-history"><p className="eyebrow blue">ACTION HISTORY</p><h3>Хийсэн ба өмнөх алхмууд</h3>{actionHistory.slice(0, 6).map((item) => <div key={item.id}><strong>{item.title}</strong><span>{item.status} · {item.minutes} мин</span></div>)}</article>}
       <WeeklyCheckinPanel checkins={checkins} saving={saving} onAction={onAction} />
       {coachNotes.length > 0 && <article className="panel member-coach-notes"><p className="eyebrow blue">SPONSOR / COACH ЗӨВЛӨГӨӨ</p><h3>Танд өгсөн дараагийн зөвлөмж</h3>{coachNotes.map((note) => <div key={note.id}><strong>{note.authorName}</strong><p>{note.note}</p>{note.nextAction && <small>Дараагийн алхам: {note.nextAction}</small>}</div>)}</article>}
     </section>
+  );
+}
+
+function supportStatusLabel(status: string) {
+  return {
+    unassigned: "Хариуцах хүн оноогоогүй",
+    assigned: "Sponsor/coach-д очсон",
+    acknowledged: "Хүлээж авсан",
+    in_progress: "Шийдэж байна",
+    resolved: "Гишүүний баталгаа хүлээж байна",
+    member_confirmed: "Гишүүн баталсан",
+    closed: "Хаасан",
+  }[status] ?? status;
+}
+
+function supportTypeLabel(type: string) {
+  return {
+    not_understood: "Ойлгоогүй зүйл байна",
+    cannot_start: "Хаанаас эхлэхээ мэдэхгүй",
+    insufficient_time: "Цаг хүрэхгүй байна",
+    needs_practice: "Дадлага хэрэгтэй",
+    needs_person: "Хүнтэй ярилцах хэрэгтэй",
+    other: "Бусад тусламж",
+  }[type] ?? type;
+}
+
+function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest, resourceTitle, first30DayEnabled, saving, onAction }: {
+  activeAction: WorkspacePayload["activeAction"];
+  fallbackAction: NonNullable<WorkspacePayload["successMap"]>["plan"]["todayAction"];
+  currentSupportRequest: WorkspacePayload["supportRequests"][number] | null;
+  resourceTitle: string | null;
+  first30DayEnabled: boolean;
+  saving: boolean;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
+}) {
+  const [showBlocked, setShowBlocked] = useState(false);
+  const [blockedReason, setBlockedReason] = useState("");
+  const [requestType, setRequestType] = useState("not_understood");
+  const [requestText, setRequestText] = useState("");
+  const [minutes, setMinutes] = useState(String(activeAction?.minutes ?? fallbackAction.minutes));
+
+  const title = activeAction?.title ?? fallbackAction.title;
+  const detail = activeAction?.detail ?? fallbackAction.detail;
+  const doneWhen = activeAction?.doneWhen || fallbackAction.doneWhen || "Ажлаа хийж, үр дүнгээ тэмдэглэсэн байна.";
+  const status = activeAction?.status ?? "proposed";
+
+  async function transition(nextStatus: "accepted" | "started" | "done" | "blocked" | "paused") {
+    if (!activeAction) return;
+    const isBlocked = nextStatus === "blocked";
+    const success = await onAction({
+      action: "transition_member_action",
+      actionId: activeAction.id,
+      nextStatus,
+      blockedReason: isBlocked ? blockedReason : "",
+      requestType: isBlocked ? requestType : null,
+      requestText: isBlocked ? requestText : "",
+    }, isBlocked ? "Тусламжийн хүсэлт таны шууд sponsor/coach-д очлоо." : nextStatus === "done" ? "Ажил дууссанд бүртгэгдэж, дараагийн алхам бэлэн боллоо." : "Ажлын төлөв шинэчлэгдлээ.");
+    if (success && isBlocked) {
+      setShowBlocked(false);
+      setBlockedReason("");
+      setRequestText("");
+    }
+  }
+
+  async function changeTime(event: FormEvent) {
+    event.preventDefault();
+    if (!activeAction) return;
+    await onAction({ action: "change_member_action_time", actionId: activeAction.id, minutes: Number(minutes) }, "Ажлын хугацаа шинэчлэгдлээ.");
+  }
+
+  return (
+    <article className="panel member-action-card">
+      <header><div><p className="eyebrow cyan">NEXT BEST ACTION</p><h3>{title}</h3></div><span className={`action-status status-${status}`}>{status === "done" ? "Дууссан" : status === "blocked" ? "Гацсан" : status === "started" ? "Хийж байна" : status === "paused" ? "Түр зогссон" : "Эхлэхэд бэлэн"}</span></header>
+      <p className="action-detail">{detail}</p>
+      <div className="action-meta"><span><strong>{activeAction?.minutes ?? fallbackAction.minutes} мин</strong> боломжит хугацаанд</span>{resourceTitle && <span><strong>Academy</strong> {resourceTitle}</span>}</div>
+      <div className="done-criterion"><span>Дууссан гэж үзэх шалгуур</span><strong>{doneWhen}</strong></div>
+
+      {!first30DayEnabled || !activeAction ? (
+        <div className="feature-disabled-note"><strong>Шинэ action loop feature flag-аар хаалттай байна.</strong><span>Төлөвлөгөө унших боломжтой. Preview орчны migration ба flag баталгаажсаны дараа Start/Done/Blocked идэвхжинэ.</span></div>
+      ) : (
+        <>
+          <div className="action-buttons">
+            {["proposed", "accepted", "paused", "blocked"].includes(status) && <button className="primary-button" disabled={saving} onClick={() => void transition("started")}>{status === "paused" || status === "blocked" ? "Үргэлжлүүлэх" : "Эхлэх"}</button>}
+            {["proposed", "accepted", "started"].includes(status) && <button className="secondary-button" disabled={saving} onClick={() => void transition("done")}>✓ Дууссан</button>}
+            {["proposed", "accepted", "started"].includes(status) && <button className="secondary-button" disabled={saving} onClick={() => setShowBlocked((value) => !value)}>Тусламж хэрэгтэй</button>}
+            {["accepted", "started"].includes(status) && <button className="text-button" disabled={saving} onClick={() => void transition("paused")}>Түр зогсоох</button>}
+          </div>
+          {!['done', 'superseded'].includes(status) && <form className="action-time-form" onSubmit={changeTime}><label>Хугацаа<input type="number" min="5" max={activeAction.capacityMinutes} step="5" value={minutes} onChange={(event) => setMinutes(event.target.value)} /></label><button className="text-button" disabled={saving || Number(minutes) === activeAction.minutes || Number(minutes) < 5 || Number(minutes) > activeAction.capacityMinutes}>Хугацаа солих</button></form>}
+          {showBlocked && (
+            <form className="blocked-form" onSubmit={(event) => { event.preventDefault(); void transition("blocked"); }}>
+              <label>Юун дээр гацсан бэ?<textarea value={blockedReason} onChange={(event) => setBlockedReason(event.target.value)} maxLength={1200} required /></label>
+              <label>Ямар тусламж хэрэгтэй вэ?<select value={requestType} onChange={(event) => setRequestType(event.target.value)}><option value="not_understood">Ойлгоогүй зүйлээ тайлбарлуулах</option><option value="cannot_start">Хаанаас эхлэхээ тодруулах</option><option value="insufficient_time">Цагтаа тааруулж багасгах</option><option value="needs_practice">Дадлага, жишээ авах</option><option value="needs_person">Sponsor/coach-той ярилцах</option><option value="other">Бусад</option></select></label>
+              <label>Sponsor/coach-д илгээх хүсэлт<textarea value={requestText} onChange={(event) => setRequestText(event.target.value)} maxLength={1200} required /></label>
+              <button className="primary-button" type="submit" disabled={saving || blockedReason.trim().length < 3 || requestText.trim().length < 3}>Тусламжийн хүсэлт илгээх</button>
+            </form>
+          )}
+          {currentSupportRequest && <div className="support-request-state"><span>{supportStatusLabel(currentSupportRequest.status)}</span><p>{currentSupportRequest.requestText}</p>{currentSupportRequest.nextCheckAt && <small>Дараагийн шалгалт: {new Date(currentSupportRequest.nextCheckAt).toLocaleString("mn-MN")}</small>}</div>}
+        </>
+      )}
+    </article>
+  );
+}
+
+function MemberPracticeCard({ practice, saving, onAction }: {
+  practice: WorkspacePayload["academyPractices"][number];
+  saving: boolean;
+  onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
+}) {
+  const [submission, setSubmission] = useState(practice.submission);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    await onAction({ action: "submit_academy_practice", practiceId: practice.id, submission }, "Дадлагын үр дүн sponsor/coach-ийн review-д очлоо.");
+  }
+
+  return (
+    <article className="panel practice-card">
+      <p className="eyebrow blue">ACADEMY · БОДИТ ДАДЛАГА</p><h3>{practice.prompt}</h3>
+      {practice.status === "reviewed" ? <div className="practice-feedback"><strong>Coach feedback</strong><p>{practice.feedback}</p></div> : <form onSubmit={submit}><label>Юу хийж, ямар үр дүн гарсан бэ?<textarea value={submission} onChange={(event) => setSubmission(event.target.value)} maxLength={2400} placeholder="2–3 өгүүлбэрээр бодит жишээгээ бичнэ үү." required /></label><button className="secondary-button" type="submit" disabled={saving || submission.trim().length < 10}>{practice.status === "submitted" ? "Хариултаа шинэчлэх" : "Review-д илгээх"}</button></form>}
+    </article>
   );
 }
 

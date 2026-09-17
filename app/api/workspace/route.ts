@@ -83,6 +83,7 @@ type CoachNoteRow = {
   note: string;
   next_action: string;
   visible_to_member: boolean;
+  support_request_id: string | null;
   created_at: string;
 };
 type SuccessMapRow = {
@@ -94,8 +95,58 @@ type SuccessMapRow = {
   plan: SuccessMapPlan;
   plan_source: "deterministic" | "ai_gateway";
   ai_consent: boolean;
+  support_summary_consent?: boolean;
   completed_at: string;
   updated_at: string;
+};
+type MemberActionRow = {
+  id: string;
+  member_user_id: string;
+  title: string;
+  detail: string;
+  done_when: string;
+  minutes: number;
+  capacity_minutes: number;
+  status: "proposed" | "accepted" | "started" | "done" | "blocked" | "paused" | "superseded";
+  blocked_reason: string;
+  resource_lesson_id: string | null;
+  sequence_no: number;
+  updated_at: string;
+};
+type SupportRequestRow = {
+  id: string;
+  member_user_id: string;
+  action_id: string;
+  assigned_to: string | null;
+  request_type: string;
+  request_text: string;
+  status: string;
+  resolution_note: string;
+  outcome_helpful: boolean | null;
+  next_check_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+type AcademyPracticeRow = {
+  id: string;
+  member_user_id: string;
+  action_id: string;
+  lesson_id: string;
+  prompt: string;
+  submission: string;
+  status: string;
+  reviewer_user_id: string | null;
+  feedback: string;
+  updated_at: string;
+};
+type RankClaimRow = {
+  id: string;
+  member_user_id: string;
+  claimed_label: string;
+  source_kind: string;
+  evidence_reference: string;
+  status: string;
+  created_at: string;
 };
 
 class WorkspaceError extends Error {
@@ -131,8 +182,8 @@ async function authorizedContext(): Promise<AuthContext> {
 
 function transitionFailure(error: { code?: string; message?: string }): never {
   if (error.code === "42501") throw new WorkspaceError(403, "Энэ үйлдэлд шаардлагатай эрх эсвэл тусдаа хянагч алга.");
-  if (error.code === "P0002") throw new WorkspaceError(404, "Ноорог олдсонгүй.");
-  if (error.code === "22023") throw new WorkspaceError(409, "Контентын төлөв эсвэл эх сурвалж энэ шилжилтийг зөвшөөрөхгүй байна.");
+  if (error.code === "P0002") throw new WorkspaceError(404, "Хүссэн бүртгэл олдсонгүй.");
+  if (error.code === "22023") throw new WorkspaceError(409, "Одоогийн төлөв энэ шилжилтийг зөвшөөрөхгүй байна.");
   throw error;
 }
 
@@ -155,6 +206,10 @@ function sameOrigin(request: Request) {
 export async function GET() {
   try {
     const { supabase, userId, role } = await authorizedContext();
+    const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
+    const successMapSelect = first30DayEnabled
+      ? "current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_source,ai_consent,support_summary_consent,completed_at,updated_at"
+      : "current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_source,ai_consent,completed_at,updated_at";
     const [
       progressResult,
       lessonsResult,
@@ -187,7 +242,7 @@ export async function GET() {
         .limit(40),
       supabase
         .from("member_success_maps")
-        .select("current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_source,ai_consent,completed_at,updated_at")
+        .select(successMapSelect)
         .eq("user_id", userId)
         .maybeSingle(),
       supabase.from("user_profiles").select("id,email,display_name,created_at").order("created_at", { ascending: false }),
@@ -195,7 +250,9 @@ export async function GET() {
       supabase.from("member_relationships").select("member_user_id,sponsor_user_id,coach_user_id,team_name"),
       supabase.from("member_success_summaries").select("user_id,goal_30_day,weekly_capacity,primary_blocker,support_needs,today_action,updated_at"),
       supabase.from("member_checkins").select("id,user_id,progress_summary,blocker,help_request,next_focus,progress_percent,needs_help,created_at").order("created_at", { ascending: false }).limit(200),
-      supabase.from("coach_notes").select("id,member_user_id,author_user_id,note,next_action,visible_to_member,created_at").order("created_at", { ascending: false }).limit(200),
+      supabase.from("coach_notes").select(first30DayEnabled
+        ? "id,member_user_id,author_user_id,note,next_action,visible_to_member,support_request_id,created_at"
+        : "id,member_user_id,author_user_id,note,next_action,visible_to_member,created_at").order("created_at", { ascending: false }).limit(200),
     ]);
 
     const firstError = progressResult.error
@@ -210,6 +267,44 @@ export async function GET() {
       ?? checkinsResult.error
       ?? coachNotesResult.error;
     if (firstError) throw firstError;
+
+    let actionRows: MemberActionRow[] = [];
+    let supportRequestRows: SupportRequestRow[] = [];
+    let academyPracticeRows: AcademyPracticeRow[] = [];
+    let rankClaimRows: RankClaimRow[] = [];
+    if (first30DayEnabled) {
+      const [actionsResult, supportRequestsResult, academyPracticesResult, rankClaimsResult] = await Promise.all([
+        supabase
+          .from("member_actions")
+          .select("id,member_user_id,title,detail,done_when,minutes,capacity_minutes,status,blocked_reason,resource_lesson_id,sequence_no,updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("support_requests")
+          .select("id,member_user_id,action_id,assigned_to,request_type,request_text,status,resolution_note,outcome_helpful,next_check_at,created_at,updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("member_academy_practices")
+          .select("id,member_user_id,action_id,lesson_id,prompt,submission,status,reviewer_user_id,feedback,updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("external_rank_claims")
+          .select("id,member_user_id,claimed_label,source_kind,evidence_reference,status,created_at")
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ]);
+      const featureError = actionsResult.error
+        ?? supportRequestsResult.error
+        ?? academyPracticesResult.error
+        ?? rankClaimsResult.error;
+      if (featureError) throw featureError;
+      actionRows = (actionsResult.data ?? []) as MemberActionRow[];
+      supportRequestRows = (supportRequestsResult.data ?? []) as SupportRequestRow[];
+      academyPracticeRows = (academyPracticesResult.data ?? []) as AcademyPracticeRow[];
+      rankClaimRows = (rankClaimsResult.data ?? []) as RankClaimRow[];
+    }
 
     const progress = ((progressResult.data ?? []) as LessonRow[]).map((row) => ({
       lessonId: row.lesson_id,
@@ -260,6 +355,7 @@ export async function GET() {
       plan: successMapRow.plan,
       planSource: successMapRow.plan_source,
       aiConsent: successMapRow.ai_consent,
+      supportSummaryConsent: successMapRow.support_summary_consent ?? true,
       completedAt: successMapRow.completed_at,
       updatedAt: successMapRow.updated_at,
     } : null;
@@ -269,7 +365,9 @@ export async function GET() {
     const relationships = (relationshipsResult.data ?? []) as RelationshipRow[];
     const summaries = (summariesResult.data ?? []) as SuccessSummaryRow[];
     const checkins = (checkinsResult.data ?? []) as CheckinRow[];
-    const coachNotesRows = (coachNotesResult.data ?? []) as CoachNoteRow[];
+    // The selected columns are feature-flagged so older production schemas stay readable.
+    // Supabase's compile-time select parser cannot represent that runtime union.
+    const coachNotesRows = (coachNotesResult.data ?? []) as unknown as CoachNoteRow[];
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
     const membershipsById = new Map(memberships.map((membership) => [membership.user_id, membership]));
     const relationshipsById = new Map(relationships.map((relationship) => [relationship.member_user_id, relationship]));
@@ -367,7 +465,67 @@ export async function GET() {
       createdAt: note.created_at,
     }));
 
+    const ownActions = actionRows.filter((action) => action.member_user_id === userId);
+    const activeActionRow = ownActions.find((action) => !["done", "superseded"].includes(action.status)) ?? null;
+    const activeAction = activeActionRow ? {
+      id: activeActionRow.id,
+      title: activeActionRow.title,
+      detail: activeActionRow.detail,
+      doneWhen: activeActionRow.done_when,
+      minutes: activeActionRow.minutes,
+      capacityMinutes: activeActionRow.capacity_minutes,
+      status: activeActionRow.status,
+      blockedReason: activeActionRow.blocked_reason,
+      resourceLessonId: activeActionRow.resource_lesson_id,
+      sequenceNo: activeActionRow.sequence_no,
+      updatedAt: activeActionRow.updated_at,
+    } : null;
+    const myActionHistory = ownActions.filter((action) => action.id !== activeActionRow?.id).map((action) => ({
+      id: action.id,
+      title: action.title,
+      status: action.status,
+      minutes: action.minutes,
+      sequenceNo: action.sequence_no,
+      updatedAt: action.updated_at,
+    }));
+    const supportRequests = supportRequestRows.map((request) => ({
+      id: request.id,
+      memberUserId: request.member_user_id,
+      actionId: request.action_id,
+      assignedTo: request.assigned_to,
+      requestType: request.request_type,
+      requestText: request.request_text,
+      status: request.status,
+      resolutionNote: request.resolution_note,
+      outcomeHelpful: request.outcome_helpful,
+      nextCheckAt: request.next_check_at,
+      createdAt: request.created_at,
+      updatedAt: request.updated_at,
+    }));
+    const academyPractices = academyPracticeRows.map((practice) => ({
+      id: practice.id,
+      memberUserId: practice.member_user_id,
+      actionId: practice.action_id,
+      lessonId: practice.lesson_id,
+      prompt: practice.prompt,
+      submission: practice.submission,
+      status: practice.status,
+      reviewerUserId: practice.reviewer_user_id,
+      feedback: practice.feedback,
+      updatedAt: practice.updated_at,
+    }));
+    const rankClaims = rankClaimRows.map((claim) => ({
+      id: claim.id,
+      memberUserId: claim.member_user_id,
+      claimedLabel: claim.claimed_label,
+      sourceKind: claim.source_kind,
+      evidenceReference: claim.evidence_reference,
+      status: claim.status,
+      createdAt: claim.created_at,
+    }));
+
     return Response.json({
+      first30DayEnabled,
       viewer: {
         userId,
         role,
@@ -382,6 +540,11 @@ export async function GET() {
       supportMembers,
       myCheckins,
       coachNotes,
+      activeAction,
+      myActionHistory,
+      supportRequests,
+      academyPractices,
+      rankClaims,
       successMap,
     });
   } catch (error) {
@@ -402,6 +565,163 @@ export async function POST(request: Request) {
     const { supabase, userId, role } = await authorizedContext();
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
+    const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
+    const featureActions = new Set([
+      "transition_member_action",
+      "change_member_action_time",
+      "advance_support_request",
+      "confirm_support_request",
+      "submit_academy_practice",
+      "review_academy_practice",
+      "record_rank_claim",
+    ]);
+    if (featureActions.has(action) && !first30DayEnabled) {
+      return Response.json({ error: "Эхний 30 хоногийн шинэ урсгал одоогоор идэвхжээгүй байна." }, { status: 503 });
+    }
+
+    if (action === "transition_member_action") {
+      const actionId = String(body.actionId ?? "");
+      const nextStatus = String(body.nextStatus ?? "");
+      const blockedReason = String(body.blockedReason ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+      const requestType = body.requestType ? String(body.requestType) : null;
+      const requestText = String(body.requestText ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(actionId) || !["accepted", "started", "done", "blocked", "paused", "superseded"].includes(nextStatus)) {
+        return Response.json({ error: "Ажлын төлөв буруу байна." }, { status: 400 });
+      }
+      const { data, error } = await supabase.rpc("transition_my_member_action", {
+        p_action_id: actionId,
+        p_next_status: nextStatus,
+        p_blocked_reason: blockedReason,
+        p_request_type: requestType,
+        p_request_text: requestText,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ action: data });
+    }
+
+    if (action === "change_member_action_time") {
+      const actionId = String(body.actionId ?? "");
+      const minutes = Number(body.minutes);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(actionId) || !Number.isInteger(minutes) || minutes < 5 || minutes > 480) {
+        return Response.json({ error: "Хугацааг зөв оруулна уу." }, { status: 400 });
+      }
+      const { data, error } = await supabase.rpc("change_my_member_action_time", {
+        p_action_id: actionId,
+        p_minutes: minutes,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ action: data });
+    }
+
+    if (action === "advance_support_request") {
+      const supportRequestId = String(body.supportRequestId ?? "");
+      const nextStatus = String(body.nextStatus ?? "");
+      const resolutionNote = String(body.resolutionNote ?? "").replace(/\s+/g, " ").trim().slice(0, 1600);
+      const nextCheckAt = body.nextCheckAt ? String(body.nextCheckAt) : null;
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(supportRequestId) || !["acknowledged", "in_progress", "resolved"].includes(nextStatus)) {
+        return Response.json({ error: "Тусламжийн төлөв буруу байна." }, { status: 400 });
+      }
+      const parsedNextCheck = nextCheckAt ? new Date(nextCheckAt) : null;
+      if (parsedNextCheck && Number.isNaN(parsedNextCheck.getTime())) {
+        return Response.json({ error: "Дараагийн шалгах хугацаа буруу байна." }, { status: 400 });
+      }
+      const { data, error } = await supabase.rpc("advance_assigned_support_request", {
+        p_support_request_id: supportRequestId,
+        p_next_status: nextStatus,
+        p_resolution_note: resolutionNote,
+        p_next_check_at: parsedNextCheck?.toISOString() ?? null,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ supportRequest: data });
+    }
+
+    if (action === "confirm_support_request") {
+      const supportRequestId = String(body.supportRequestId ?? "");
+      const helpful = body.helpful;
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(supportRequestId) || typeof helpful !== "boolean") {
+        return Response.json({ error: "Тусламжийн үр дүнг зөв сонгоно уу." }, { status: 400 });
+      }
+      const { data, error } = await supabase.rpc("confirm_my_support_request", {
+        p_support_request_id: supportRequestId,
+        p_helpful: helpful,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ supportRequest: data });
+    }
+
+    if (action === "submit_academy_practice") {
+      const practiceId = String(body.practiceId ?? "");
+      const submission = String(body.submission ?? "").trim().slice(0, 2400);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(practiceId) || submission.length < 10) {
+        return Response.json({ error: "Дадлагын үр дүнг 10-аас дээш тэмдэгтээр бичнэ үү." }, { status: 400 });
+      }
+      const { data, error } = await supabase.rpc("submit_my_academy_practice", {
+        p_practice_id: practiceId,
+        p_submission: submission,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ practice: data });
+    }
+
+    if (action === "review_academy_practice") {
+      const practiceId = String(body.practiceId ?? "");
+      const feedback = String(body.feedback ?? "").trim().slice(0, 1600);
+      const competencyLabel = body.competencyLabel ? String(body.competencyLabel).trim().slice(0, 160) : null;
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(practiceId) || feedback.length < 3) {
+        return Response.json({ error: "Дадлагын feedback-ийг зөв оруулна уу." }, { status: 400 });
+      }
+      const { data, error } = await supabase.rpc("review_assigned_academy_practice", {
+        p_practice_id: practiceId,
+        p_feedback: feedback,
+        p_competency_label: competencyLabel,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ practice: data });
+    }
+
+    if (action === "record_rank_claim") {
+      if (role !== "admin") throw new WorkspaceError(403, "Admin role required");
+      const memberUserId = String(body.memberUserId ?? "");
+      const claimedLabel = String(body.claimedLabel ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+      const sourceKind = String(body.sourceKind ?? "");
+      const evidenceReference = String(body.evidenceReference ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (
+        !uuidPattern.test(memberUserId)
+        || claimedLabel.length < 2
+        || evidenceReference.length < 3
+        || !["official_back_office", "official_document", "other_official"].includes(sourceKind)
+      ) {
+        return Response.json({ error: "Rank баримтын мэдээллийг зөв оруулна уу." }, { status: 400 });
+      }
+      const { data: member, error: memberError } = await supabase
+        .from("team_members")
+        .select("user_id,status")
+        .eq("user_id", memberUserId)
+        .maybeSingle();
+      if (memberError) throw memberError;
+      if (!member || member.status !== "active") return Response.json({ error: "Идэвхтэй гишүүн сонгоно уу." }, { status: 400 });
+      const { data, error } = await supabase
+        .from("external_rank_claims")
+        .insert({
+          member_user_id: memberUserId,
+          claimed_label: claimedLabel,
+          source_kind: sourceKind,
+          evidence_reference: evidenceReference,
+          status: "pending",
+          submitted_by: userId,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return Response.json({ rankClaim: data }, { status: 201 });
+    }
 
     if (action === "update_user") {
       if (role !== "admin") throw new WorkspaceError(403, "Admin role required");
@@ -512,8 +832,9 @@ export async function POST(request: Request) {
       const note = String(body.note ?? "").replace(/\s+/g, " ").trim().slice(0, 1600);
       const nextAction = String(body.nextAction ?? "").replace(/\s+/g, " ").trim().slice(0, 800);
       const visibleToMember = body.visibleToMember !== false;
+      const supportRequestId = body.supportRequestId ? String(body.supportRequestId) : null;
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!uuidPattern.test(memberUserId) || memberUserId === userId || note.length < 3) {
+      if (!uuidPattern.test(memberUserId) || memberUserId === userId || note.length < 3 || (supportRequestId !== null && !uuidPattern.test(supportRequestId))) {
         return Response.json({ error: "Гишүүн болон зөвлөгөөний мэдээллийг зөв оруулна уу." }, { status: 400 });
       }
       const { data: coachNote, error } = await supabase
@@ -524,6 +845,7 @@ export async function POST(request: Request) {
           note,
           next_action: nextAction,
           visible_to_member: visibleToMember,
+          ...(first30DayEnabled && supportRequestId ? { support_request_id: supportRequestId } : {}),
         })
         .select("id")
         .single();
