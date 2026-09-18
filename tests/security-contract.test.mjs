@@ -173,8 +173,8 @@ test("first 30 day loop is additive, gated and relationship-scoped", async () =>
 
 test("P1 support loop hardening is fail-closed and preserves member feedback history", async () => {
   const [migration, followupMigration, workspace, app, onboarding, onboardingPage, successMapRoute] = await Promise.all([
-    readFile(new URL("../supabase/migrations/20260918123000_harden_member_support_feedback_loop.sql", import.meta.url), "utf8"),
-    readFile(new URL("../supabase/migrations/20260918123100_p1_consent_and_queue_followup.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260918112143_harden_member_support_feedback_loop.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260918112201_p1_consent_and_queue_followup.sql", import.meta.url), "utf8"),
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/team-os-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/onboarding/onboarding-form.tsx", import.meta.url), "utf8"),
@@ -189,11 +189,15 @@ test("P1 support loop hardening is fail-closed and preserves member feedback his
   assert.match(migration, /outcome_helpful = false/);
   assert.match(migration, /next_check_at = now\(\) \+ interval '1 day'/);
   assert.match(migration, /member_actions_sync_current_summary/);
+  assert.match(migration, /drop trigger if exists member_actions_sync_current_summary/);
+  assert.match(migration, /drop policy if exists "member_success_map_versions_select_active_own"/);
+  assert.match(migration, /drop policy if exists "external_rank_claims_select_active_own_or_admin"/);
   assert.match(migration, /viewer\.role = 'admin'/);
   assert.doesNotMatch(migration, /viewer\.role in \('admin', 'director'\)/);
   assert.match(followupMigration, /alter column sharing_enabled set default false/);
   assert.match(followupMigration, /alter column support_summary_consent set default false/);
   assert.match(followupMigration, /member_success_maps_sync_summary_consent/);
+  assert.match(followupMigration, /drop trigger if exists member_success_maps_sync_summary_consent/);
   assert.match(followupMigration, /p_helpful is null/);
   assert.match(followupMigration, /assigned\.role = 'admin'/);
   assert.match(followupMigration, /resolutionNote/);

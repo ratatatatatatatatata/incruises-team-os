@@ -1,3 +1,4 @@
+-- Version matches the production Supabase migration ledger.
 begin;
 
 alter table public.member_success_maps
@@ -93,6 +94,7 @@ as $$
 $$;
 
 drop policy if exists "member_success_map_versions_select_own" on public.member_success_map_versions;
+drop policy if exists "member_success_map_versions_select_active_own" on public.member_success_map_versions;
 create policy "member_success_map_versions_select_active_own"
 on public.member_success_map_versions for select to authenticated
 using (
@@ -101,6 +103,7 @@ using (
 );
 
 drop policy if exists "external_rank_claims_select_own_or_admin" on public.external_rank_claims;
+drop policy if exists "external_rank_claims_select_active_own_or_admin" on public.external_rank_claims;
 create policy "external_rank_claims_select_active_own_or_admin"
 on public.external_rank_claims for select to authenticated
 using (
@@ -540,6 +543,7 @@ $$;
 
 revoke all on function private.sync_member_success_summary_current_action() from public, anon, authenticated;
 
+drop trigger if exists member_actions_sync_current_summary on public.member_actions;
 create trigger member_actions_sync_current_summary
 after insert or update of status, title on public.member_actions
 for each row execute function private.sync_member_success_summary_current_action();

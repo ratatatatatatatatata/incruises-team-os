@@ -1,3 +1,4 @@
+-- Version matches the production Supabase migration ledger.
 begin;
 
 alter table public.member_success_summaries
@@ -6,6 +7,7 @@ alter table public.member_success_summaries
 alter table public.member_success_map_versions
   alter column support_summary_consent set default false;
 
+drop trigger if exists member_success_maps_sync_summary_consent on public.member_success_maps;
 create trigger member_success_maps_sync_summary_consent
 after update of support_summary_consent on public.member_success_maps
 for each row
