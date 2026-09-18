@@ -2,7 +2,7 @@ begin;
 
 set local search_path = extensions, public, pg_catalog;
 
-select plan(21);
+select plan(22);
 
 insert into auth.users (id, email, created_at, updated_at)
 values
@@ -229,7 +229,19 @@ select is(
   'resolving without a replacement preserves the support deadline'
 );
 
+reset role;
+update public.support_requests
+set assigned_to = 'a1000000-0000-0000-0000-000000000003'
+where id = 'a3000000-0000-0000-0000-000000000001';
+set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a1000000-0000-0000-0000-000000000001', true);
+insert into pg_temp.p1_runtime_results
+select throws_ok(
+  $$select public.confirm_my_support_request('a3000000-0000-0000-0000-000000000001', null)$$,
+  '22023',
+  'Helpful outcome required',
+  'direct RPC rejects a NULL helpful outcome'
+);
 insert into pg_temp.p1_runtime_results
 select lives_ok(
   $$select public.confirm_my_support_request('a3000000-0000-0000-0000-000000000001', false)$$,

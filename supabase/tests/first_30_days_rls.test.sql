@@ -1,6 +1,6 @@
 begin;
 
-select plan(31);
+select plan(36);
 
 select has_table('public', 'member_actions', 'member_actions exists');
 select has_table('public', 'member_action_events', 'member_action_events exists');
@@ -170,6 +170,46 @@ select ok(
       and not tgisinternal
   ),
   'current action title is synchronized to the purpose-limited summary'
+);
+
+select ok(
+  (select column_default like '%false%'
+   from information_schema.columns
+   where table_schema = 'public'
+     and table_name = 'member_success_summaries'
+     and column_name = 'sharing_enabled'),
+  'new purpose-limited summaries default to sharing disabled'
+);
+
+select ok(
+  (select column_default like '%false%'
+   from information_schema.columns
+   where table_schema = 'public'
+     and table_name = 'member_success_map_versions'
+     and column_name = 'support_summary_consent'),
+  'new map versions default to support-summary consent disabled'
+);
+
+select ok(
+  exists (
+    select 1 from pg_trigger
+    where tgrelid = 'public.member_success_maps'::regclass
+      and tgname = 'member_success_maps_sync_summary_consent'
+      and not tgisinternal
+  ),
+  'consent-only changes synchronize the purpose-limited summary gate'
+);
+
+select ok(
+  pg_get_functiondef('private.confirm_my_support_request(uuid,boolean)'::regprocedure)
+    like '%p_helpful is null%',
+  'direct RPC rejects a NULL helpful outcome'
+);
+
+select ok(
+  pg_get_functiondef('private.log_support_request_event()'::regprocedure)
+    like '%resolutionNote%',
+  'support event history preserves the resolution note and next-check context'
 );
 
 select * from finish();

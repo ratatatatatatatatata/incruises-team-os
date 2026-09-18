@@ -217,6 +217,7 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
               drafts={activeDrafts}
               successMap={workspace.successMap}
               activeAction={workspace.activeAction}
+              first30DayEnabled={workspace.first30DayEnabled}
               nextLesson={nextRecommendedLesson}
               onNavigate={setSection}
               onSelectLevel={(index) => { setSelectedLevel(index); setSection("academy"); }}
@@ -696,7 +697,7 @@ function UserDirectory({ users, rankClaims, first30DayEnabled, currentEmail, sav
   );
 }
 
-function Overview({ progressPercent, completed, total, pendingTasks, drafts, successMap, activeAction, nextLesson, onNavigate, onSelectLevel }: {
+function Overview({ progressPercent, completed, total, pendingTasks, drafts, successMap, activeAction, first30DayEnabled, nextLesson, onNavigate, onSelectLevel }: {
   progressPercent: number;
   completed: number;
   total: number;
@@ -704,12 +705,24 @@ function Overview({ progressPercent, completed, total, pendingTasks, drafts, suc
   drafts: WorkspacePayload["drafts"];
   successMap: WorkspacePayload["successMap"];
   activeAction: WorkspacePayload["activeAction"];
+  first30DayEnabled: boolean;
   nextLesson: WorkspacePayload["lessons"][number] | null;
   onNavigate: (section: Section) => void;
   onSelectLevel: (index: number) => void;
 }) {
   const reviewCount = drafts.filter((draft) => draft.status === "review").length;
   const approvedCount = drafts.filter((draft) => draft.status === "corporate_approved").length;
+  const personalTitle = activeAction?.title
+    ?? (successMap ? first30DayEnabled ? "Эхний алхмууд дууссан" : successMap.plan.todayAction.title : "Миний замаа нээх");
+  const personalTag = activeAction
+    ? `${activeAction.minutes} мин`
+    : successMap ? first30DayEnabled ? "Check-in" : `${successMap.plan.todayAction.minutes} мин` : "5 асуулт";
+  const personalDetail = activeAction?.detail
+    ?? (successMap
+      ? first30DayEnabled
+        ? "Хийсэн зүйл, саадаа check-in-д тэмдэглээд дараагийн нэг ажлаа тодруулна уу."
+        : successMap.plan.todayAction.detail
+      : "5 хариултаас таны боломжит цагт багтсан, дуусах шалгууртай нэг эхний ажлыг гаргана.");
   return <section className="section-stack">
     <div className="command-hero">
       <div><p className="eyebrow cyan">TODAY · CONTROL TOWER</p><h2>Өнөөдөр системээ нэг алхмаар урагшлуул.</h2><p>Сургалт, гишүүний үйлчилгээ, контентын хяналтаас хамгийн өндөр нөлөөтэй ажлыг эхэл.</p><div className="hero-actions"><button className="primary-button" onClick={() => onSelectLevel(0)}>Сургалтаа үргэлжлүүлэх</button><button className="secondary-button" onClick={() => onNavigate("members")}>Success queue харах</button></div></div>
@@ -717,7 +730,7 @@ function Overview({ progressPercent, completed, total, pendingTasks, drafts, suc
     </div>
     <div className="metric-grid"><Metric label="Сургалт" value={`${completed}/${total}`} copy="completion бүртгэл" tone="blue" /><Metric label="Member Success" value={String(pendingTasks.length)} copy="нээлттэй ажиллагаа" tone="cyan" /><Metric label="Контент" value={String(reviewCount)} copy="тусдаа хяналт хүлээж байна" tone="violet" /><Metric label="Approval ref" value={String(approvedCount)} copy="reference бүртгэлтэй" tone="green" /></div>
     <div className="overview-grid">
-      <article className="panel focus-panel personal-focus"><div className="panel-heading"><div><p className="eyebrow cyan">PERSONAL AI · CURRENT ACTION</p><h3>{activeAction?.title ?? (successMap ? "Эхний алхмууд дууссан" : "Миний замаа нээх")}</h3></div><span className="tag">{activeAction ? `${activeAction.minutes} мин` : successMap ? "Check-in" : "5 асуулт"}</span></div><p>{activeAction?.detail ?? (successMap ? "Хийсэн зүйл, саадаа check-in-д тэмдэглээд дараагийн нэг ажлаа тодруулна уу." : "5 хариултаас таны боломжит цагт багтсан, дуусах шалгууртай нэг эхний ажлыг гаргана.")}</p><button className="text-button" onClick={() => onNavigate("my-path")}>{successMap ? "Миний замыг нээх →" : "Эхлүүлэх →"}</button></article>
+      <article className="panel focus-panel personal-focus"><div className="panel-heading"><div><p className="eyebrow cyan">PERSONAL AI · CURRENT ACTION</p><h3>{personalTitle}</h3></div><span className="tag">{personalTag}</span></div><p>{personalDetail}</p><button className="text-button" onClick={() => onNavigate("my-path")}>{successMap ? "Миний замыг нээх →" : "Эхлүүлэх →"}</button></article>
       <article className="panel focus-panel"><div className="panel-heading"><div><p className="eyebrow blue">NEXT ACADEMY LESSON</p><h3>{nextLesson ? `${nextLesson.levelId.toUpperCase()} · ${nextLesson.title}` : "Одоогийн сургалтын зам дууссан"}</h3></div><span className="tag">{nextLesson ? `${nextLesson.minutes} мин` : "✓"}</span></div><p>{nextLesson ? "Дараагийн дуусаагүй хичээлийг нээж, сурсан зүйлээ бодит дадлагатай холбоно." : "Шинэ баталгаажсан хичээл нэмэгдэх хүртэл хийсэн дадлага, feedback-ээ ашиглана."}</p><div className="mini-progress"><span style={{ width: `${progressPercent}%` }} /></div>{nextLesson && <button className="text-button" onClick={() => onSelectLevel(Math.max(0, learningLevels.findIndex((level) => level.id === nextLesson.levelId)))}>Хичээл нээх →</button>}</article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">MEMBER SUCCESS</p><h3>Анхаарах дараалал</h3></div><button className="text-button" onClick={() => onNavigate("members")}>Бүгдийг харах</button></div>{pendingTasks.length === 0 ? <EmptyState title="Task нэмээгүй байна" copy="72 цагийн onboarding-оос эхэлнэ үү." /> : pendingTasks.slice(0, 3).map((task) => <div className="compact-row" key={task.id}><span className={`risk-dot ${task.risk}`} /><div><strong>{task.memberName}</strong><small>{task.nextAction}</small></div><b>{task.dueLabel}</b></div>)}</article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">CONTENT GUARD</p><h3>Нийтлэх урсгал</h3></div><button className="text-button" onClick={() => onNavigate("content")}>Studio нээх</button></div>{drafts.length === 0 ? <EmptyState title="Ноорог алга" copy="Албан эх сурвалжтай контент үүсгэнэ үү." /> : drafts.slice(0, 3).map((draft) => <div className="compact-row" key={draft.id}><Status status={draft.status} /><div><strong>{draft.title}</strong><small>{draft.channel}</small></div><b>→</b></div>)}</article>
@@ -753,7 +766,7 @@ function SuccessMapPanel({ successMap, activeAction, actionHistory, supportReque
     ? academyPractices.find((practice) => practice.actionId === activeAction.id) ?? null
     : null;
   const pendingPreviousPractices = academyPractices.filter((practice) => practice.id !== activePractice?.id && practice.status !== "reviewed");
-  const reviewedPractices = academyPractices.filter((practice) => practice.status === "reviewed");
+  const reviewedPractices = academyPractices.filter((practice) => practice.id !== activePractice?.id && practice.status === "reviewed");
   const currentSupportRequest = activeAction
     ? supportRequests.find((request) => request.actionId === activeAction.id && !["member_confirmed", "closed"].includes(request.status)) ?? null
     : null;

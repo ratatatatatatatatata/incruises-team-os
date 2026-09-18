@@ -172,8 +172,9 @@ test("first 30 day loop is additive, gated and relationship-scoped", async () =>
 });
 
 test("P1 support loop hardening is fail-closed and preserves member feedback history", async () => {
-  const [migration, workspace, app, onboarding, onboardingPage, successMapRoute] = await Promise.all([
+  const [migration, followupMigration, workspace, app, onboarding, onboardingPage, successMapRoute] = await Promise.all([
     readFile(new URL("../supabase/migrations/20260918123000_harden_member_support_feedback_loop.sql", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260918123100_p1_consent_and_queue_followup.sql", import.meta.url), "utf8"),
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/team-os-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/onboarding/onboarding-form.tsx", import.meta.url), "utf8"),
@@ -190,8 +191,16 @@ test("P1 support loop hardening is fail-closed and preserves member feedback his
   assert.match(migration, /member_actions_sync_current_summary/);
   assert.match(migration, /viewer\.role = 'admin'/);
   assert.doesNotMatch(migration, /viewer\.role in \('admin', 'director'\)/);
+  assert.match(followupMigration, /alter column sharing_enabled set default false/);
+  assert.match(followupMigration, /alter column support_summary_consent set default false/);
+  assert.match(followupMigration, /member_success_maps_sync_summary_consent/);
+  assert.match(followupMigration, /p_helpful is null/);
+  assert.match(followupMigration, /assigned\.role = 'admin'/);
+  assert.match(followupMigration, /resolutionNote/);
   assert.match(workspace, /completedActionCountByMember/);
+  assert.match(workspace, /myPracticesResult/);
   assert.match(app, /Энэ нь feature flag-ийн алдаа биш/);
+  assert.match(app, /first30DayEnabled=\{workspace\.first30DayEnabled\}/);
   assert.match(app, /ДУУСГААГҮЙ ДАДЛАГА/);
   assert.match(app, /Coach feedback ба өмнөх дадлагын түүх/);
   assert.match(app, /nextCheckAt: nextCheckAt \? new Date\(nextCheckAt\)\.toISOString\(\) : null/);
