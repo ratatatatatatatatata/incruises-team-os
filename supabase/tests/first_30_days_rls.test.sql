@@ -1,6 +1,6 @@
 begin;
 
-select plan(23);
+select plan(36);
 
 select has_table('public', 'member_actions', 'member_actions exists');
 select has_table('public', 'member_action_events', 'member_action_events exists');
@@ -109,6 +109,107 @@ select function_privs_are(
   'authenticated',
   array['EXECUTE'],
   'support workflow transition is available only through its RPC'
+);
+
+select ok(
+  to_regprocedure('private.current_user_has_active_membership()') is not null,
+  'active membership has one reusable database authorization helper'
+);
+
+select ok(
+  pg_get_functiondef('private.review_assigned_academy_practice(uuid,text,text)'::regprocedure)
+    like '%A member cannot review their own practice%',
+  'practice owner cannot review their own submitted practice'
+);
+
+select ok(
+  pg_get_functiondef('private.advance_assigned_support_request(uuid,text,text,timestamp with time zone)'::regprocedure)
+    like '%coalesce(v_request.assigned_to = v_user_id, false)%',
+  'NULL assignee authorization is fail-closed'
+);
+
+select ok(
+  pg_get_functiondef('private.confirm_my_support_request(uuid,boolean)'::regprocedure)
+    like '%outcome_helpful = false%',
+  'negative help confirmation reopens the same support request'
+);
+
+select ok(
+  exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'member_checkins'
+      and policyname = 'member_checkins_select_authorized'
+      and qual like '%current_user_can_access_support_record%'
+  ),
+  'check-in reads use the same consent-aware support scope'
+);
+
+select ok(
+  exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'academy_lessons'
+      and policyname = 'academy_lessons_select_active'
+      and qual like '%current_user_has_active_membership%'
+  ),
+  'published Academy lessons require active membership'
+);
+
+select ok(
+  pg_get_functiondef('private.current_user_can_support_member(uuid)'::regprocedure)
+    not like '%director%',
+  'director role alone does not grant global member scope'
+);
+
+select ok(
+  exists (
+    select 1 from pg_trigger
+    where tgrelid = 'public.member_actions'::regclass
+      and tgname = 'member_actions_sync_current_summary'
+      and not tgisinternal
+  ),
+  'current action title is synchronized to the purpose-limited summary'
+);
+
+select ok(
+  (select column_default like '%false%'
+   from information_schema.columns
+   where table_schema = 'public'
+     and table_name = 'member_success_summaries'
+     and column_name = 'sharing_enabled'),
+  'new purpose-limited summaries default to sharing disabled'
+);
+
+select ok(
+  (select column_default like '%false%'
+   from information_schema.columns
+   where table_schema = 'public'
+     and table_name = 'member_success_map_versions'
+     and column_name = 'support_summary_consent'),
+  'new map versions default to support-summary consent disabled'
+);
+
+select ok(
+  exists (
+    select 1 from pg_trigger
+    where tgrelid = 'public.member_success_maps'::regclass
+      and tgname = 'member_success_maps_sync_summary_consent'
+      and not tgisinternal
+  ),
+  'consent-only changes synchronize the purpose-limited summary gate'
+);
+
+select ok(
+  pg_get_functiondef('private.confirm_my_support_request(uuid,boolean)'::regprocedure)
+    like '%p_helpful is null%',
+  'direct RPC rejects a NULL helpful outcome'
+);
+
+select ok(
+  pg_get_functiondef('private.log_support_request_event()'::regprocedure)
+    like '%resolutionNote%',
+  'support event history preserves the resolution note and next-check context'
 );
 
 select * from finish();

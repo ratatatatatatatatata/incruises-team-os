@@ -11,7 +11,7 @@ const payloadSchema = z.object({
   primaryBlocker: z.string().trim().min(10).max(1600),
   growthPreferences: z.string().trim().min(10).max(1600),
   aiConsent: z.boolean().default(false),
-  supportSummaryConsent: z.boolean().default(true),
+  supportSummaryConsent: z.boolean().default(false),
 }).strict();
 
 function sameOrigin(request: Request) {

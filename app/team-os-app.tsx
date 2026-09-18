@@ -147,6 +147,7 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
   const selectedDone = selectedLessons.filter((lesson) => lesson.isPublished && completedLessons.has(lesson.id)).length;
   const selectedPublishedCount = selectedLessons.filter((lesson) => lesson.isPublished).length;
   const selectedLesson = workspace.lessons.find((lesson) => lesson.id === selectedLessonId) ?? null;
+  const nextRecommendedLesson = publishedLessons.find((lesson) => !completedLessons.has(lesson.id)) ?? null;
 
   async function submitDraft(event: FormEvent) {
     event.preventDefault();
@@ -215,6 +216,9 @@ export function TeamOsApp({ user, initialSection }: { user: { name: string; emai
               pendingTasks={pendingMemberTasks}
               drafts={activeDrafts}
               successMap={workspace.successMap}
+              activeAction={workspace.activeAction}
+              first30DayEnabled={workspace.first30DayEnabled}
+              nextLesson={nextRecommendedLesson}
               onNavigate={setSection}
               onSelectLevel={(index) => { setSelectedLevel(index); setSection("academy"); }}
             />
@@ -500,7 +504,7 @@ function TeamSupportPanel({ members, notes, supportRequests, practices, saving, 
         return Number(rightOpen) - Number(leftOpen);
       }).map((member) => (
         <SupportMemberCard
-          key={member.id}
+          key={`${member.id}:${supportRequests.find((request) => request.memberUserId === member.id && !["member_confirmed", "closed"].includes(request.status))?.id ?? "none"}`}
           member={member}
           notes={notes.filter((note) => note.memberUserId === member.id)}
           requests={supportRequests.filter((request) => request.memberUserId === member.id)}
@@ -521,13 +525,14 @@ function SupportMemberCard({ member, notes, requests, practices, saving, onActio
   saving: boolean;
   onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
+  const openRequest = requests.find((request) => !["member_confirmed", "closed"].includes(request.status)) ?? null;
   const [note, setNote] = useState("");
   const [nextAction, setNextAction] = useState("");
   const [visibleToMember, setVisibleToMember] = useState(true);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [nextCheckAt, setNextCheckAt] = useState("");
   const [practiceFeedback, setPracticeFeedback] = useState("");
   const [competencyLabel, setCompetencyLabel] = useState("");
-  const openRequest = requests.find((request) => !["member_confirmed", "closed"].includes(request.status)) ?? null;
   const submittedPractice = practices.find((practice) => practice.status === "submitted") ?? null;
   const attention = openRequest ? "urgent" : member.onboardingRequired ? "onboarding" : member.latestCheckin?.needsHelp ? "urgent" : member.latestCheckin ? "normal" : "attention";
 
@@ -546,6 +551,7 @@ function SupportMemberCard({ member, notes, requests, practices, saving, onActio
       supportRequestId: openRequest?.id,
       nextStatus,
       resolutionNote,
+      nextCheckAt: nextCheckAt ? new Date(nextCheckAt).toISOString() : null,
     }, nextStatus === "resolved" ? "Тусламжийн шийдлийг гишүүнд баталгаажуулахаар илгээлээ." : "Тусламжийн хүсэлтийн төлөв шинэчлэгдлээ.");
     if (success && nextStatus === "resolved") setResolutionNote("");
   }
@@ -577,6 +583,7 @@ function SupportMemberCard({ member, notes, requests, practices, saving, onActio
           <h4>{supportTypeLabel(openRequest.requestType)}</h4>
           <p>{openRequest.requestText}</p>
           {openRequest.nextCheckAt && <small>Дараагийн шалгах хугацаа: {new Date(openRequest.nextCheckAt).toLocaleString("mn-MN")}</small>}
+          <label>Дараагийн шалгах хугацаа<input type="datetime-local" value={nextCheckAt} onChange={(event) => setNextCheckAt(event.target.value)} /></label>
           <div className="support-controls">
             {["assigned", "unassigned"].includes(openRequest.status) && <button className="secondary-button" type="button" disabled={saving} onClick={() => void advanceSupport("acknowledged")}>Хүсэлтийг хүлээж авсан</button>}
             {["assigned", "unassigned", "acknowledged"].includes(openRequest.status) && <button className="secondary-button" type="button" disabled={saving} onClick={() => void advanceSupport("in_progress")}>Шийдэж эхлэх</button>}
@@ -690,18 +697,32 @@ function UserDirectory({ users, rankClaims, first30DayEnabled, currentEmail, sav
   );
 }
 
-function Overview({ progressPercent, completed, total, pendingTasks, drafts, successMap, onNavigate, onSelectLevel }: {
+function Overview({ progressPercent, completed, total, pendingTasks, drafts, successMap, activeAction, first30DayEnabled, nextLesson, onNavigate, onSelectLevel }: {
   progressPercent: number;
   completed: number;
   total: number;
   pendingTasks: WorkspacePayload["memberTasks"];
   drafts: WorkspacePayload["drafts"];
   successMap: WorkspacePayload["successMap"];
+  activeAction: WorkspacePayload["activeAction"];
+  first30DayEnabled: boolean;
+  nextLesson: WorkspacePayload["lessons"][number] | null;
   onNavigate: (section: Section) => void;
   onSelectLevel: (index: number) => void;
 }) {
   const reviewCount = drafts.filter((draft) => draft.status === "review").length;
   const approvedCount = drafts.filter((draft) => draft.status === "corporate_approved").length;
+  const personalTitle = activeAction?.title
+    ?? (successMap ? first30DayEnabled ? "Эхний алхмууд дууссан" : successMap.plan.todayAction.title : "Миний замаа нээх");
+  const personalTag = activeAction
+    ? `${activeAction.minutes} мин`
+    : successMap ? first30DayEnabled ? "Check-in" : `${successMap.plan.todayAction.minutes} мин` : "5 асуулт";
+  const personalDetail = activeAction?.detail
+    ?? (successMap
+      ? first30DayEnabled
+        ? "Хийсэн зүйл, саадаа check-in-д тэмдэглээд дараагийн нэг ажлаа тодруулна уу."
+        : successMap.plan.todayAction.detail
+      : "5 хариултаас таны боломжит цагт багтсан, дуусах шалгууртай нэг эхний ажлыг гаргана.");
   return <section className="section-stack">
     <div className="command-hero">
       <div><p className="eyebrow cyan">TODAY · CONTROL TOWER</p><h2>Өнөөдөр системээ нэг алхмаар урагшлуул.</h2><p>Сургалт, гишүүний үйлчилгээ, контентын хяналтаас хамгийн өндөр нөлөөтэй ажлыг эхэл.</p><div className="hero-actions"><button className="primary-button" onClick={() => onSelectLevel(0)}>Сургалтаа үргэлжлүүлэх</button><button className="secondary-button" onClick={() => onNavigate("members")}>Success queue харах</button></div></div>
@@ -709,8 +730,8 @@ function Overview({ progressPercent, completed, total, pendingTasks, drafts, suc
     </div>
     <div className="metric-grid"><Metric label="Сургалт" value={`${completed}/${total}`} copy="completion бүртгэл" tone="blue" /><Metric label="Member Success" value={String(pendingTasks.length)} copy="нээлттэй ажиллагаа" tone="cyan" /><Metric label="Контент" value={String(reviewCount)} copy="тусдаа хяналт хүлээж байна" tone="violet" /><Metric label="Approval ref" value={String(approvedCount)} copy="reference бүртгэлтэй" tone="green" /></div>
     <div className="overview-grid">
-      <article className="panel focus-panel personal-focus"><div className="panel-heading"><div><p className="eyebrow cyan">PERSONAL AI · STARTER MAP</p><h3>{successMap ? successMap.plan.todayAction.title : "Миний замаа нээх"}</h3></div><span className="tag">{successMap ? `${successMap.plan.todayAction.minutes} мин` : "5 асуулт"}</span></div><p>{successMap ? successMap.plan.todayAction.detail : "5 хариултаас таны боломжит цагт багтсан, дуусах шалгууртай нэг эхний ажлыг гаргана."}</p><button className="text-button" onClick={() => onNavigate("my-path")}>{successMap ? "Өнөөдрийн ажлаа нээх →" : "Эхлүүлэх →"}</button></article>
-      <article className="panel focus-panel"><div className="panel-heading"><div><p className="eyebrow blue">NEXT BEST ACTION</p><h3>L0 · Компани ба нөхцөл</h3></div><span className="tag">35 мин</span></div><p>Багийн бүх ярианы суурь: Member ба Partner-ийн ялгаа, зөв хүлээлт, амлалтгүй тайлбар.</p><div className="mini-progress"><span style={{ width: `${progressPercent}%` }} /></div><button className="text-button" onClick={() => onSelectLevel(0)}>Хичээл нээх →</button></article>
+      <article className="panel focus-panel personal-focus"><div className="panel-heading"><div><p className="eyebrow cyan">PERSONAL AI · CURRENT ACTION</p><h3>{personalTitle}</h3></div><span className="tag">{personalTag}</span></div><p>{personalDetail}</p><button className="text-button" onClick={() => onNavigate("my-path")}>{successMap ? "Миний замыг нээх →" : "Эхлүүлэх →"}</button></article>
+      <article className="panel focus-panel"><div className="panel-heading"><div><p className="eyebrow blue">NEXT ACADEMY LESSON</p><h3>{nextLesson ? `${nextLesson.levelId.toUpperCase()} · ${nextLesson.title}` : "Одоогийн сургалтын зам дууссан"}</h3></div><span className="tag">{nextLesson ? `${nextLesson.minutes} мин` : "✓"}</span></div><p>{nextLesson ? "Дараагийн дуусаагүй хичээлийг нээж, сурсан зүйлээ бодит дадлагатай холбоно." : "Шинэ баталгаажсан хичээл нэмэгдэх хүртэл хийсэн дадлага, feedback-ээ ашиглана."}</p><div className="mini-progress"><span style={{ width: `${progressPercent}%` }} /></div>{nextLesson && <button className="text-button" onClick={() => onSelectLevel(Math.max(0, learningLevels.findIndex((level) => level.id === nextLesson.levelId)))}>Хичээл нээх →</button>}</article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">MEMBER SUCCESS</p><h3>Анхаарах дараалал</h3></div><button className="text-button" onClick={() => onNavigate("members")}>Бүгдийг харах</button></div>{pendingTasks.length === 0 ? <EmptyState title="Task нэмээгүй байна" copy="72 цагийн onboarding-оос эхэлнэ үү." /> : pendingTasks.slice(0, 3).map((task) => <div className="compact-row" key={task.id}><span className={`risk-dot ${task.risk}`} /><div><strong>{task.memberName}</strong><small>{task.nextAction}</small></div><b>{task.dueLabel}</b></div>)}</article>
       <article className="panel overview-queue"><div className="panel-heading"><div><p className="eyebrow blue">CONTENT GUARD</p><h3>Нийтлэх урсгал</h3></div><button className="text-button" onClick={() => onNavigate("content")}>Studio нээх</button></div>{drafts.length === 0 ? <EmptyState title="Ноорог алга" copy="Албан эх сурвалжтай контент үүсгэнэ үү." /> : drafts.slice(0, 3).map((draft) => <div className="compact-row" key={draft.id}><Status status={draft.status} /><div><strong>{draft.title}</strong><small>{draft.channel}</small></div><b>→</b></div>)}</article>
       <article className="panel guard-panel"><div><span className="shield">✓</span><p className="eyebrow cyan">PILOT CONTROLS</p><h3>Source + review gate</h3><p>Auto-publish хаалттай. Source lock, тусдаа reviewer, approval reference-ийн бүртгэл идэвхтэй.</p></div><button className="text-button light" onClick={() => onNavigate("vault")}>Source Vault →</button></article>
@@ -744,6 +765,8 @@ function SuccessMapPanel({ successMap, activeAction, actionHistory, supportReque
   const activePractice = activeAction
     ? academyPractices.find((practice) => practice.actionId === activeAction.id) ?? null
     : null;
+  const pendingPreviousPractices = academyPractices.filter((practice) => practice.id !== activePractice?.id && practice.status !== "reviewed");
+  const reviewedPractices = academyPractices.filter((practice) => practice.id !== activePractice?.id && practice.status === "reviewed");
   const currentSupportRequest = activeAction
     ? supportRequests.find((request) => request.actionId === activeAction.id && !["member_confirmed", "closed"].includes(request.status)) ?? null
     : null;
@@ -762,6 +785,8 @@ function SuccessMapPanel({ successMap, activeAction, actionHistory, supportReque
         onAction={onAction}
       />
       {activePractice && <MemberPracticeCard key={activePractice.id} practice={activePractice} saving={saving} onAction={onAction} />}
+      {pendingPreviousPractices.length > 0 && <section className="section-stack"><div className="section-intro"><div><p className="eyebrow blue">ДУУСГААГҮЙ ДАДЛАГА</p><h2>Өмнөх ажлын дадлага алга болохгүй.</h2></div><div className="summary-pill"><strong>{pendingPreviousPractices.length}</strong><span>хүлээгдэж байна</span></div></div>{pendingPreviousPractices.map((practice) => <MemberPracticeCard key={practice.id} practice={practice} saving={saving} onAction={onAction} />)}</section>}
+      {reviewedPractices.length > 0 && <details className="panel plan-details" open><summary>Coach feedback ба өмнөх дадлагын түүх ({reviewedPractices.length})</summary><div className="section-stack">{reviewedPractices.map((practice) => <MemberPracticeCard key={practice.id} practice={practice} saving={saving} onAction={onAction} />)}</div></details>}
       {supportRequests.some((request) => request.status === "resolved") && (
         <article className="panel support-confirmation"><p className="eyebrow blue">ТУСЛАМЖИЙН ҮР ДҮН</p><h3>Өгсөн тусламж хэрэг болсон уу?</h3>{supportRequests.filter((request) => request.status === "resolved").map((request) => <div key={request.id}><p>{request.resolutionNote}</p><div className="action-buttons"><button className="primary-button" disabled={saving} onClick={() => void onAction({ action: "confirm_support_request", supportRequestId: request.id, helpful: true }, "Тус болсон гэж тэмдэглэлээ.")}>Тийм, тус болсон</button><button className="secondary-button" disabled={saving} onClick={() => void onAction({ action: "confirm_support_request", supportRequestId: request.id, helpful: false }, "Өөр арга хэрэгтэй гэж тэмдэглэлээ.")}>Үгүй, өөр арга хэрэгтэй</button></div></div>)}</article>
       )}
@@ -820,10 +845,11 @@ function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest,
   const [requestText, setRequestText] = useState("");
   const [minutes, setMinutes] = useState(String(activeAction?.minutes ?? fallbackAction.minutes));
 
-  const title = activeAction?.title ?? fallbackAction.title;
-  const detail = activeAction?.detail ?? fallbackAction.detail;
-  const doneWhen = activeAction?.doneWhen || fallbackAction.doneWhen || "Ажлаа хийж, үр дүнгээ тэмдэглэсэн байна.";
-  const status = activeAction?.status ?? "proposed";
+  const terminal = first30DayEnabled && !activeAction;
+  const title = activeAction?.title ?? (terminal ? "Эхний алхмууд дууссан" : fallbackAction.title);
+  const detail = activeAction?.detail ?? (terminal ? "Хийсэн зүйл, гарсан үр дүн, гацсан зүйлээ доорх check-in-д тэмдэглэнэ үү. Үүний дараа дараагийн нэг ажлыг тодруулна." : fallbackAction.detail);
+  const doneWhen = activeAction?.doneWhen || (terminal ? "Check-in хадгалагдаж, дараагийн ажлын бодит мэдээлэл бэлэн болсон байна." : fallbackAction.doneWhen) || "Ажлаа хийж, үр дүнгээ тэмдэглэсэн байна.";
+  const status = activeAction?.status ?? (terminal ? "done" : "proposed");
 
   async function transition(nextStatus: "accepted" | "started" | "done" | "blocked" | "paused") {
     if (!activeAction) return;
@@ -835,7 +861,7 @@ function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest,
       blockedReason: isBlocked ? blockedReason : "",
       requestType: isBlocked ? requestType : null,
       requestText: isBlocked ? requestText : "",
-    }, isBlocked ? "Тусламжийн хүсэлт таны шууд sponsor/coach-д очлоо." : nextStatus === "done" ? "Ажил дууссанд бүртгэгдэж, дараагийн алхам бэлэн боллоо." : "Ажлын төлөв шинэчлэгдлээ.");
+    }, isBlocked ? "Тусламжийн хүсэлт таны шууд sponsor/coach-д очлоо." : nextStatus === "done" ? "Ажил дууссанд бүртгэгдлээ. Дараагийн ажил эсвэл check-in дэлгэц шинэчлэгдэнэ." : "Ажлын төлөв шинэчлэгдлээ.");
     if (success && isBlocked) {
       setShowBlocked(false);
       setBlockedReason("");
@@ -856,8 +882,10 @@ function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest,
       <div className="action-meta"><span><strong>{activeAction?.minutes ?? fallbackAction.minutes} мин</strong> боломжит хугацаанд</span>{resourceTitle && <span><strong>Academy</strong> {resourceTitle}</span>}</div>
       <div className="done-criterion"><span>Дууссан гэж үзэх шалгуур</span><strong>{doneWhen}</strong></div>
 
-      {!first30DayEnabled || !activeAction ? (
+      {!first30DayEnabled ? (
         <div className="feature-disabled-note"><strong>Шинэ action loop feature flag-аар хаалттай байна.</strong><span>Төлөвлөгөө унших боломжтой. Preview орчны migration ба flag баталгаажсаны дараа Start/Done/Blocked идэвхжинэ.</span></div>
+      ) : !activeAction ? (
+        <div className="practice-feedback"><strong>Дараагийн алхам</strong><p>Энэ нь feature flag-ийн алдаа биш. Доорх check-in-д бодит үр дүнгээ оруулж, sponsor/coach-ийн зөвлөгөө эсвэл шинэ төлөвлөгөөгөөр дараагийн нэг ажлаа нээнэ.</p></div>
       ) : (
         <>
           <div className="action-buttons">

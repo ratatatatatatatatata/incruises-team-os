@@ -273,7 +273,7 @@ export async function GET() {
     let academyPracticeRows: AcademyPracticeRow[] = [];
     let rankClaimRows: RankClaimRow[] = [];
     if (first30DayEnabled) {
-      const [actionsResult, supportRequestsResult, academyPracticesResult, rankClaimsResult] = await Promise.all([
+      const [actionsResult, supportRequestsResult, supportedPracticesResult, myPracticesResult, rankClaimsResult] = await Promise.all([
         supabase
           .from("member_actions")
           .select("id,member_user_id,title,detail,done_when,minutes,capacity_minutes,status,blocked_reason,resource_lesson_id,sequence_no,updated_at")
@@ -287,8 +287,14 @@ export async function GET() {
         supabase
           .from("member_academy_practices")
           .select("id,member_user_id,action_id,lesson_id,prompt,submission,status,reviewer_user_id,feedback,updated_at")
+          .neq("member_user_id", userId)
           .order("updated_at", { ascending: false })
           .limit(200),
+        supabase
+          .from("member_academy_practices")
+          .select("id,member_user_id,action_id,lesson_id,prompt,submission,status,reviewer_user_id,feedback,updated_at")
+          .eq("member_user_id", userId)
+          .order("updated_at", { ascending: false }),
         supabase
           .from("external_rank_claims")
           .select("id,member_user_id,claimed_label,source_kind,evidence_reference,status,created_at")
@@ -297,12 +303,16 @@ export async function GET() {
       ]);
       const featureError = actionsResult.error
         ?? supportRequestsResult.error
-        ?? academyPracticesResult.error
+        ?? supportedPracticesResult.error
+        ?? myPracticesResult.error
         ?? rankClaimsResult.error;
       if (featureError) throw featureError;
       actionRows = (actionsResult.data ?? []) as MemberActionRow[];
       supportRequestRows = (supportRequestsResult.data ?? []) as SupportRequestRow[];
-      academyPracticeRows = (academyPracticesResult.data ?? []) as AcademyPracticeRow[];
+      academyPracticeRows = [...new Map(
+        ([...(supportedPracticesResult.data ?? []), ...(myPracticesResult.data ?? [])] as AcademyPracticeRow[])
+          .map((practice) => [practice.id, practice]),
+      ).values()];
       rankClaimRows = (rankClaimsResult.data ?? []) as RankClaimRow[];
     }
 
@@ -376,6 +386,16 @@ export async function GET() {
     for (const checkin of checkins) {
       if (!latestCheckinsById.has(checkin.user_id)) latestCheckinsById.set(checkin.user_id, checkin);
     }
+    const activeActionsByMember = new Map<string, MemberActionRow>();
+    const completedActionCountByMember = new Map<string, number>();
+    for (const actionRow of actionRows) {
+      if (!["done", "superseded"].includes(actionRow.status) && !activeActionsByMember.has(actionRow.member_user_id)) {
+        activeActionsByMember.set(actionRow.member_user_id, actionRow);
+      }
+      if (actionRow.status === "done") {
+        completedActionCountByMember.set(actionRow.member_user_id, (completedActionCountByMember.get(actionRow.member_user_id) ?? 0) + 1);
+      }
+    }
 
     let users: Array<{
       id: string;
@@ -414,6 +434,8 @@ export async function GET() {
         const relationship = relationshipsById.get(membership.user_id);
         const summary = summariesById.get(membership.user_id);
         const latestCheckin = latestCheckinsById.get(membership.user_id);
+        const currentAction = activeActionsByMember.get(membership.user_id);
+        const completedActionCount = completedActionCountByMember.get(membership.user_id) ?? 0;
         return [{
           id: membership.user_id,
           email: profile.email,
@@ -428,7 +450,7 @@ export async function GET() {
             weeklyCapacity: summary.weekly_capacity,
             primaryBlocker: summary.primary_blocker,
             supportNeeds: summary.support_needs,
-            todayAction: summary.today_action,
+            todayAction: currentAction?.title ?? (completedActionCount >= 3 ? "Эхний алхмууд дууссан · check-in хүлээж байна" : summary.today_action),
             updatedAt: summary.updated_at,
           } : null,
           latestCheckin: latestCheckin ? {
