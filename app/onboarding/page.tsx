@@ -46,7 +46,7 @@ export default async function OnboardingPage() {
       displayName={user.displayName}
       initialAnswers={initialAnswers}
       initialAiConsent={row?.ai_consent ?? false}
-      initialSupportSummaryConsent={row?.support_summary_consent ?? true}
+      initialSupportSummaryConsent={row?.support_summary_consent ?? false}
     />
   );
 }

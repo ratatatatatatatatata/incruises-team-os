@@ -25,6 +25,7 @@ export function normalizeMongolianIntent(value: string) {
     .replace(/\bbusiness\b/g, "бизнес")
     .replace(/\bbish\b/g, "биш")
     .replace(/\bugui\b|\bgui\b|\bgvi\b/g, "үгүй")
+    .replace(/\bminut\b/g, "минут")
     .replace(/\bmin(?:ute)?s?\b/g, "минут")
     .replace(/\btsag\b/g, "цаг")
     .replace(/\s+/g, " ")
@@ -125,7 +126,7 @@ function focusLabel(track: FocusTrack) {
 }
 
 function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: number): {
-  today: { title: string; detail: string };
+  today: { title: string; detail: string; doneWhen: string };
   weekly: ActionTemplate[];
   measures: string[];
 } {
@@ -142,6 +143,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
       today: {
         title: "Нэг тодорхой контентын ноорог гаргах",
         detail: `${goal}-д хүрэхэд хэрэгтэй нэг хэрэглэгчийн асуултыг сонго. Тэр асуултад хариулах 5–7 өгүүлбэрийн нооргийг ${minutes} минутад бичээд нийтлэхээс өмнөх review-д бэлд.`,
+        doneWhen: "Нэг асуултад хариулсан 5–7 өгүүлбэрийн ноорог review-д бэлэн болсон байна.",
       },
       weekly: [
         {
@@ -165,6 +167,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
       today: {
         title: "Follow-up хийх хүмүүсээ дараалуулах",
         detail: `Хариу хүлээж буй хүмүүсээ нэг жагсаалтад оруулаад хамгийн түрүүнд холбогдох 3 хүнийг сонго. ${minutes} минутад дарамтгүй, дараагийн алхамтай богино мессеж бэлд.`,
+        doneWhen: "Холбогдох эхний 3 хүн ба илгээх нэг богино мессеж бэлэн болсон байна.",
       },
       weekly: [
         {
@@ -188,6 +191,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
       today: {
         title: "Discovery ярианыхаа 5 асуултыг бэлдэх",
         detail: `${goal}-д хүрэхэд хэрэгтэй хэрэглэгчийн нөхцөл, хэрэгцээ, саадыг тодруулах 5 нээлттэй асуулт бич. ${minutes} минутын дараа нэг асуултыг чангаар туршиж зас.`,
+        doneWhen: "5 нээлттэй асуулт бичиж, нэгийг нь чангаар туршаад зассан байна.",
       },
       weekly: [
         {
@@ -211,6 +215,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
       today: {
         title: "Нэг минутын илтгэлээ бэлдэж, чангаар хэлэх",
         detail: `${goal}-той холбоотой нэг гол санааг эхлэл, гол санаа, төгсгөл гэсэн 3 өгүүлбэрээр бич. ${minutes} минутад нэг удаа чангаар хэлээд хамгийн ойлгомжгүй нэг өгүүлбэрээ зас.`,
+        doneWhen: "3 өгүүлбэр бичиж, нэг удаа чангаар хэлээд ойлгомжгүй нэг өгүүлбэрээ зассан байна.",
       },
       weekly: [
         {
@@ -234,6 +239,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
       today: {
         title: "Нэг ойлголтыг сурч, өөрийн үгээр тайлбарлах",
         detail: `${blocker} гэдэг саадтай хамгийн ойр Academy хичээлийг ${minutes} минут судлаад гол санааг 3 өгүүлбэрээр өөрийн үгээр бич.`,
+        doneWhen: "Нэг хичээлийн гол санааг өөрийн үгээр 3 өгүүлбэрээр тайлбарласан байна.",
       },
       weekly: [
         {
@@ -257,6 +263,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
       today: {
         title: "Багийн нэг саад, нэг эзэн, нэг хугацааг тодруулах",
         detail: `${blocker} гэдэг саадыг шийдэх хамгийн жижиг ажлыг сонго. ${minutes} минутад хэн хийх, хэзээ дуусгах, дууссаныг юугаар мэдэхийг нэг мөрөөр баталгаажуул.`,
+        doneWhen: "Нэг ажил, хариуцах хүн, хугацаа, дуусах шалгуур нэг мөрөөр бичигдсэн байна.",
       },
       weekly: [
         {
@@ -279,6 +286,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
     today: {
       title: "30 хоногийн зорилгоос эхний ажлаа сонгох",
       detail: `${goal}-ыг энэ 7 хоногт урагшлуулах хамгийн жижиг бодит ажлыг сонго. ${minutes} минутын календарийн цаг гаргаад дууссаныг юугаар мэдэхээ нэг өгүүлбэрээр бич.`,
+      doneWhen: "Нэг жижиг ажил, хийх цаг, дуусах шалгуур календарь эсвэл тэмдэглэлд бичигдсэн байна.",
     },
     weekly: [
       {
@@ -365,7 +373,7 @@ export function createStarterPlan(
     todayAction: {
       ...actionPlan.today,
       minutes,
-      doneWhen: actionPlan.weekly[0]?.doneWhen ?? "Ажлыг хийж, гарсан үр дүнгээ нэг өгүүлбэрээр тэмдэглэсэн байна.",
+      doneWhen: actionPlan.today.doneWhen,
     },
     weeklyActions: actionPlan.weekly,
     managementPlan: {
@@ -373,9 +381,9 @@ export function createStarterPlan(
         ? ["Нэг гол зорилго", "Ажил бүрийн эзэн ба хугацаа", "Долоо хоногийн bottleneck"]
         : ["Нэг гол зорилго", "Өдөр тутмын жижиг алхам", "Долоо хоногийн бодит ахиц"],
       cadence: [
-        `Даваа: ${minutes} минутын төлөвлөлт`,
-        "Лхагва: 10 минутын явц ба саад шалгах",
-        "Баасан: 20 минутын review, дараагийн 3 ажлыг сонгох",
+        `Эхлээд: зөвхөн өнөөдрийн ${minutes} минутын нэг ажлыг хий.`,
+        "Дууссаны дараа: хийсэн эсвэл гацсанаа тэмдэглэ.",
+        "Дараа нь: үлдсэн бодит боломжит цагтаа багтах дараагийн нэг ажлыг нээ.",
       ],
       measures: actionPlan.measures,
     },

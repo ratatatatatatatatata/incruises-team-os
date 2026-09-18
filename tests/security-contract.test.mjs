@@ -171,6 +171,35 @@ test("first 30 day loop is additive, gated and relationship-scoped", async () =>
   assert.match(app, /хэрэглэгчийн эрх, Academy access, зөвлөмжийг өөрчлөхгүй/);
 });
 
+test("P1 support loop hardening is fail-closed and preserves member feedback history", async () => {
+  const [migration, workspace, app, onboarding, onboardingPage, successMapRoute] = await Promise.all([
+    readFile(new URL("../supabase/migrations/20260918123000_harden_member_support_feedback_loop.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/team-os-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/onboarding/onboarding-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/onboarding/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/success-map/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(migration, /current_user_has_active_membership/);
+  assert.match(migration, /coalesce\(v_request\.assigned_to = v_user_id, false\)/);
+  assert.match(migration, /A member cannot review their own practice/);
+  assert.match(migration, /status = case when v_assigned_to is null then 'unassigned' else 'assigned' end/);
+  assert.match(migration, /outcome_helpful = false/);
+  assert.match(migration, /next_check_at = now\(\) \+ interval '1 day'/);
+  assert.match(migration, /member_actions_sync_current_summary/);
+  assert.match(migration, /viewer\.role = 'admin'/);
+  assert.doesNotMatch(migration, /viewer\.role in \('admin', 'director'\)/);
+  assert.match(workspace, /completedActionCountByMember/);
+  assert.match(app, /Энэ нь feature flag-ийн алдаа биш/);
+  assert.match(app, /ДУУСГААГҮЙ ДАДЛАГА/);
+  assert.match(app, /Coach feedback ба өмнөх дадлагын түүх/);
+  assert.match(app, /nextCheckAt: nextCheckAt \? new Date\(nextCheckAt\)\.toISOString\(\) : null/);
+  assert.match(onboarding, /ажил, амьдрал, сурч байгаа зүйл/i);
+  assert.match(onboardingPage, /initialSupportSummaryConsent=\{row\?\.support_summary_consent \?\? false\}/);
+  assert.match(successMapRoute, /supportSummaryConsent: z\.boolean\(\)\.default\(false\)/);
+});
+
 test("production accepts Vercel Marketplace Supabase environment names", async () => {
   const [supabaseConfig, nextConfig] = await Promise.all([
     readFile(new URL("../lib/supabase/config.ts", import.meta.url), "utf8"),
