@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BRAND_NAME, PRODUCT_DESCRIPTOR } from "./brand";
 import { learningLevels, officialSources, type WorkspacePayload } from "./team-os-data";
 import { AdminInvitations } from "./admin-invitations";
+import { actionSteps, plainMongolianText, readableAnswerExcerpt } from "@/lib/success-map/presentation";
 
 type Section = "overview" | "my-path" | "academy" | "content" | "members" | "vault" | "users";
 
@@ -772,14 +773,16 @@ function SuccessMapPanel({ successMap, activeAction, actionHistory, supportReque
     : null;
   return (
     <section className="section-stack success-map-section">
-      <div className="section-intro"><div><p className="eyebrow cyan">ӨНӨӨДРИЙН НЭГ АЖИЛ</p><h2>Одоо хийх зүйл нэг хараад ойлгогдоно.</h2><p>Энэ ажлыг хийсэн эсвэл гацсан үедээ тэмдэглэнэ. Дараагийн зөвлөгөө бодит үр дүнд тулгуурлана.</p></div><div className="summary-pill"><strong>{successMap.planSource === "ai_gateway" ? "AI" : "Rule"}</strong><span>{new Date(successMap.updatedAt).toLocaleDateString("mn-MN")} шинэчилсэн</span></div></div>
+      <div className="section-intro"><div><p className="eyebrow cyan">ӨНӨӨДӨР ХИЙХ ГАНЦ АЖИЛ</p><h2>Эхлээд энэ жижиг ажлыг хийнэ.</h2><p>Доорх дарааллыг дагаад, дууссан эсвэл гацсан үедээ нэг товч дарна. Дараагийн зөвлөгөө таны бодит үр дүнд тулгуурлана.</p></div><div className="summary-pill"><strong>{successMap.planSource === "ai_gateway" ? "AI" : "Дүрэм"}</strong><span>{new Date(successMap.updatedAt).toLocaleDateString("mn-MN")} шинэчилсэн</span></div></div>
       {plan.version < 2 && <article className="plan-upgrade-note"><div><strong>Энэ төлөвлөгөө өмнөх ерөнхий загвараар үүссэн байна.</strong><p>Хариултаа өөрчлөхгүйгээр шинэчилж хадгалахад чиглэлдээ таарсан, дуусах шалгууртай шинэ төлөвлөгөө гарна.</p></div><a className="primary-button" href="/onboarding">Төлөвлөгөөг тодорхой болгох</a></article>}
       <MemberActionCard
         key={activeAction?.id ?? successMap.updatedAt}
         activeAction={activeAction}
         fallbackAction={plan.todayAction}
+        goal30Day={successMap.answers.goal30Day}
         currentSupportRequest={currentSupportRequest}
         resourceTitle={activeAction?.resourceLessonId ? lessons.find((lesson) => lesson.id === activeAction.resourceLessonId)?.title ?? null : plan.academyRecommendation?.title ?? null}
+        resourceReason={activeAction?.resourceLessonId && activeAction.resourceLessonId === plan.academyRecommendation?.lessonId ? plan.academyRecommendation.reason : !activeAction?.resourceLessonId ? plan.academyRecommendation?.reason ?? null : "Энэ ажилд хэрэглэж болох нэмэлт хичээл. Хичээлийн хугацаа дээрх ажлын хугацаанд ороогүй."}
         first30DayEnabled={first30DayEnabled}
         saving={saving}
         onAction={onAction}
@@ -830,11 +833,13 @@ function supportTypeLabel(type: string) {
   }[type] ?? type;
 }
 
-function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest, resourceTitle, first30DayEnabled, saving, onAction }: {
+function MemberActionCard({ activeAction, fallbackAction, goal30Day, currentSupportRequest, resourceTitle, resourceReason, first30DayEnabled, saving, onAction }: {
   activeAction: WorkspacePayload["activeAction"];
   fallbackAction: NonNullable<WorkspacePayload["successMap"]>["plan"]["todayAction"];
+  goal30Day: string;
   currentSupportRequest: WorkspacePayload["supportRequests"][number] | null;
   resourceTitle: string | null;
+  resourceReason: string | null;
   first30DayEnabled: boolean;
   saving: boolean;
   onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
@@ -847,9 +852,13 @@ function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest,
 
   const terminal = first30DayEnabled && !activeAction;
   const title = activeAction?.title ?? (terminal ? "Эхний алхмууд дууссан" : fallbackAction.title);
-  const detail = activeAction?.detail ?? (terminal ? "Хийсэн зүйл, гарсан үр дүн, гацсан зүйлээ доорх check-in-д тэмдэглэнэ үү. Үүний дараа дараагийн нэг ажлыг тодруулна." : fallbackAction.detail);
-  const doneWhen = activeAction?.doneWhen || (terminal ? "Check-in хадгалагдаж, дараагийн ажлын бодит мэдээлэл бэлэн болсон байна." : fallbackAction.doneWhen) || "Ажлаа хийж, үр дүнгээ тэмдэглэсэн байна.";
+  const detail = activeAction?.detail ?? (terminal ? "Хийсэн зүйл, гарсан үр дүн, гацсан зүйлээ доорх явцын хэсэгт тэмдэглэнэ үү. Үүний дараа дараагийн нэг ажлыг тодруулна." : fallbackAction.detail);
+  const doneWhen = activeAction?.doneWhen || (terminal ? "Явцаа хадгалж, дараагийн ажлыг сонгоход хэрэгтэй мэдээлэл бэлэн болсон байна." : fallbackAction.doneWhen) || "Ажлаа хийж, үр дүнгээ тэмдэглэсэн байна.";
   const status = activeAction?.status ?? (terminal ? "done" : "proposed");
+  const visibleTitle = plainMongolianText(title);
+  const visibleSteps = actionSteps(detail);
+  const visibleDoneWhen = plainMongolianText(doneWhen);
+  const visibleGoal = readableAnswerExcerpt(goal30Day);
 
   async function transition(nextStatus: "accepted" | "started" | "done" | "blocked" | "paused") {
     if (!activeAction) return;
@@ -861,7 +870,7 @@ function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest,
       blockedReason: isBlocked ? blockedReason : "",
       requestType: isBlocked ? requestType : null,
       requestText: isBlocked ? requestText : "",
-    }, isBlocked ? "Тусламжийн хүсэлт таны шууд sponsor/coach-д очлоо." : nextStatus === "done" ? "Ажил дууссанд бүртгэгдлээ. Дараагийн ажил эсвэл check-in дэлгэц шинэчлэгдэнэ." : "Ажлын төлөв шинэчлэгдлээ.");
+    }, isBlocked ? "Тусламжийн хүсэлт таны урьсан хүн эсвэл дасгалжуулагчид очлоо." : nextStatus === "done" ? "Ажил дууссанд бүртгэгдлээ. Дараагийн ажил эсвэл явцын хэсэг шинэчлэгдэнэ." : "Ажлын төлөв шинэчлэгдлээ.");
     if (success && isBlocked) {
       setShowBlocked(false);
       setBlockedReason("");
@@ -877,15 +886,16 @@ function MemberActionCard({ activeAction, fallbackAction, currentSupportRequest,
 
   return (
     <article className="panel member-action-card">
-      <header><div><p className="eyebrow cyan">NEXT BEST ACTION</p><h3>{title}</h3></div><span className={`action-status status-${status}`}>{status === "done" ? "Дууссан" : status === "blocked" ? "Гацсан" : status === "started" ? "Хийж байна" : status === "paused" ? "Түр зогссон" : "Эхлэхэд бэлэн"}</span></header>
-      <p className="action-detail">{detail}</p>
-      <div className="action-meta"><span><strong>{activeAction?.minutes ?? fallbackAction.minutes} мин</strong> боломжит хугацаанд</span>{resourceTitle && <span><strong>Academy</strong> {resourceTitle}</span>}</div>
-      <div className="done-criterion"><span>Дууссан гэж үзэх шалгуур</span><strong>{doneWhen}</strong></div>
+      <header><div><p className="eyebrow cyan">ОДОО ХИЙХ НЭГ АЖИЛ</p><h3>{visibleTitle}</h3></div><span className={`action-status status-${status}`}>{status === "done" ? "Дууссан" : status === "blocked" ? "Гацсан" : status === "started" ? "Хийж байна" : status === "paused" ? "Түр зогссон" : "Эхлэхэд бэлэн"}</span></header>
+      <div className="action-reason"><span>Яагаад энэ ажил вэ?</span><p>{visibleGoal ? <>Таны “{visibleGoal}” гэсэн зорилгыг жижиг, хийж болох алхам болгохын тулд.</> : <>Таны 30 хоногийн зорилгыг жижиг, хийж болох алхам болгохын тулд.</>}</p></div>
+      <div className="action-step-list"><strong>Яг яаж хийх вэ?</strong><ol>{visibleSteps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}</ol></div>
+      <div className="action-meta"><span><strong>{activeAction?.minutes ?? fallbackAction.minutes} минут</strong> дотор</span>{resourceTitle && <span className="resource-meta"><strong>Нэмэлт хичээл</strong> {plainMongolianText(resourceTitle)}{resourceReason && <small>{plainMongolianText(resourceReason)}</small>}</span>}</div>
+      <div className="done-criterion"><span>Ингэвэл дууссан гэж үзнэ</span><strong>{visibleDoneWhen}</strong></div>
 
       {!first30DayEnabled ? (
         <div className="feature-disabled-note"><strong>Шинэ action loop feature flag-аар хаалттай байна.</strong><span>Төлөвлөгөө унших боломжтой. Preview орчны migration ба flag баталгаажсаны дараа Start/Done/Blocked идэвхжинэ.</span></div>
       ) : !activeAction ? (
-        <div className="practice-feedback"><strong>Дараагийн алхам</strong><p>Энэ нь feature flag-ийн алдаа биш. Доорх check-in-д бодит үр дүнгээ оруулж, sponsor/coach-ийн зөвлөгөө эсвэл шинэ төлөвлөгөөгөөр дараагийн нэг ажлаа нээнэ.</p></div>
+        <div className="practice-feedback"><strong>Дараагийн алхам</strong><p>Доорх явцын хэсэгт бодит үр дүнгээ оруулна уу. Дараа нь урьсан хүн, дасгалжуулагчийн зөвлөгөө эсвэл шинэ төлөвлөгөөгөөр дараагийн нэг ажил нээгдэнэ.</p></div>
       ) : (
         <>
           <div className="action-buttons">
@@ -924,8 +934,10 @@ function MemberPracticeCard({ practice, saving, onAction }: {
 
   return (
     <article className="panel practice-card">
-      <p className="eyebrow blue">ACADEMY · БОДИТ ДАДЛАГА</p><h3>{practice.prompt}</h3>
-      {practice.status === "reviewed" ? <div className="practice-feedback"><strong>Coach feedback</strong><p>{practice.feedback}</p></div> : <form onSubmit={submit}><label>Юу хийж, ямар үр дүн гарсан бэ?<textarea value={submission} onChange={(event) => setSubmission(event.target.value)} maxLength={2400} placeholder="2–3 өгүүлбэрээр бодит жишээгээ бичнэ үү." required /></label><button className="secondary-button" type="submit" disabled={saving || submission.trim().length < 10}>{practice.status === "submitted" ? "Хариултаа шинэчлэх" : "Review-д илгээх"}</button></form>}
+      <p className="eyebrow blue">СУРГАЛТ · БОДИТ ДАДЛАГА</p><h3>Хийсэн ажлынхаа үр дүнг 2–3 өгүүлбэрээр бичээрэй.</h3>
+      <p className="practice-assignment"><strong>Таны даалгавар:</strong> {plainMongolianText(practice.prompt)}</p>
+      <div className="practice-guide"><span>Бичих дараалал</span><ol><li>Би яг юу хийсэн бэ?</li><li>Ямар үр дүн гарсан бэ?</li><li>Дараагийн удаа юуг өөрчлөх вэ?</li></ol></div>
+      {practice.status === "reviewed" ? <div className="practice-feedback"><strong>Дасгалжуулагчийн санал</strong><p>{practice.feedback}</p></div> : <form onSubmit={submit}><label>Таны бодит үр дүн<textarea value={submission} onChange={(event) => setSubmission(event.target.value)} maxLength={2400} placeholder="Жишээ: Нэг асуулт сонгож 5 өгүүлбэр бичсэн. Хэт урт хоёр өгүүлбэрээ богиносгосон. Дараа нь хүнээр хянуулна." required /></label><button className="secondary-button" type="submit" disabled={saving || submission.trim().length < 10}>{practice.status === "submitted" ? "Хариултаа шинэчлэх" : "Хянуулахаар илгээх"}</button></form>}
     </article>
   );
 }
@@ -936,27 +948,27 @@ function WeeklyCheckinPanel({ checkins, saving, onAction }: {
   onAction: (payload: Record<string, unknown>, successMessage: string) => Promise<boolean>;
 }) {
   const [form, setForm] = useState({ progressSummary: "", blocker: "", helpRequest: "", nextFocus: "", progressPercent: "0", needsHelp: false });
+  const helpIsValid = !form.needsHelp || form.blocker.trim().length >= 3 || form.helpRequest.trim().length >= 3;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (form.progressSummary.trim().length < 3 || form.nextFocus.trim().length < 3) return;
-    if (!await onAction({ ...form, action: "weekly_checkin", progressPercent: Number(form.progressPercent) }, "Долоо хоногийн check-in хадгалагдлаа. Sponsor/coach summary шинэчлэгдэнэ.")) return;
+    if (form.progressSummary.trim().length < 3 || form.nextFocus.trim().length < 3 || !helpIsValid) return;
+    if (!await onAction({ ...form, action: "weekly_checkin", progressPercent: Number(form.progressPercent) }, "7 хоногийн явц хадгалагдлаа. Дэмжлэгийн товч мэдээлэл шинэчлэгдэнэ.")) return;
     setForm({ progressSummary: "", blocker: "", helpRequest: "", nextFocus: "", progressPercent: "0", needsHelp: false });
   }
 
   return (
     <div className="weekly-checkin-layout">
       <form className="panel form-panel" onSubmit={submit}>
-        <p className="eyebrow blue">WEEKLY FEEDBACK LOOP</p><h3>Энэ долоо хоногийн check-in</h3>
-        <label>Юу хийж, ямар үр дүн гаргав?<textarea value={form.progressSummary} onChange={(event) => setForm({ ...form, progressSummary: event.target.value })} maxLength={1200} required /></label>
-        <label>Юун дээр гацав?<textarea value={form.blocker} onChange={(event) => setForm({ ...form, blocker: event.target.value })} maxLength={1200} /></label>
-        <label>Ямар тусламж хэрэгтэй вэ?<textarea value={form.helpRequest} onChange={(event) => setForm({ ...form, helpRequest: event.target.value })} maxLength={1200} /></label>
-        <label>Дараагийн долоо хоногийн гол focus<textarea value={form.nextFocus} onChange={(event) => setForm({ ...form, nextFocus: event.target.value })} maxLength={1200} required /></label>
-        <label>Зорилгын явц · {form.progressPercent}%<input type="range" min="0" max="100" step="5" value={form.progressPercent} onChange={(event) => setForm({ ...form, progressPercent: event.target.value })} /></label>
-        <label className="check-row"><input type="checkbox" checked={form.needsHelp} onChange={(event) => setForm({ ...form, needsHelp: event.target.checked })} /> Sponsor/coach-ийн тусламж одоо хэрэгтэй</label>
-        <button className="primary-button" type="submit" disabled={saving || form.progressSummary.trim().length < 3 || form.nextFocus.trim().length < 3}>Check-in хадгалах</button>
+        <p className="eyebrow blue">7 ХОНОГИЙН ЯВЦ</p><h3>Хоёр гол хариултаа бичнэ үү</h3>
+        <label>1. Энэ 7 хоногт яг юу хийсэн бэ?<textarea value={form.progressSummary} onChange={(event) => setForm({ ...form, progressSummary: event.target.value })} maxLength={1200} placeholder="Жишээ: Нэг асуулт сонгож, 5 өгүүлбэрийн ноорог бичсэн." required /></label>
+        <label>2. Дараагийн 7 хоногт хийх ганц ажил<textarea value={form.nextFocus} onChange={(event) => setForm({ ...form, nextFocus: event.target.value })} maxLength={1200} placeholder="Жишээ: Нооргоо хүнээр хянуулаад нэг удаа засна." required /></label>
+        <label>Одоогийн явц<select value={form.progressPercent} onChange={(event) => setForm({ ...form, progressPercent: event.target.value })}><option value="0">Эхлээгүй · 0%</option><option value="25">Эхэлсэн · 25%</option><option value="50">Талд нь хүрсэн · 50%</option><option value="75">Ихэнхийг хийсэн · 75%</option><option value="100">Дууссан · 100%</option></select></label>
+        <label className="check-row"><input type="checkbox" checked={form.needsHelp} onChange={(event) => setForm({ ...form, needsHelp: event.target.checked, blocker: event.target.checked ? form.blocker : "", helpRequest: event.target.checked ? form.helpRequest : "" })} /> Би гацсан, урьсан хүн эсвэл дасгалжуулагчаас тусламж авмаар байна</label>
+        {form.needsHelp && <div className="checkin-help-fields"><label>Юун дээр гацсан бэ?<textarea value={form.blocker} onChange={(event) => setForm({ ...form, blocker: event.target.value })} maxLength={1200} placeholder="Ойлгоогүй эсвэл эхэлж чадахгүй байгаа нэг зүйлээ бичнэ үү." /></label><label>Ямар тусламж авбал үргэлжлүүлж чадах вэ?<textarea value={form.helpRequest} onChange={(event) => setForm({ ...form, helpRequest: event.target.value })} maxLength={1200} placeholder="Жишээ, тайлбар, хугацаа багасгах эсвэл богино ярилцлагаас сонгоно уу." /></label></div>}
+        <button className="primary-button" type="submit" disabled={saving || form.progressSummary.trim().length < 3 || form.nextFocus.trim().length < 3 || !helpIsValid}>Явцаа хадгалах</button>
       </form>
-      <article className="panel checkin-history"><div className="panel-heading"><div><p className="eyebrow blue">CHECK-IN HISTORY</p><h3>Сүүлийн явц</h3></div><span className="count-badge">{checkins.length}</span></div>{checkins.length === 0 ? <EmptyState title="Check-in алга" copy="Эхний долоо хоногийн үр дүнгээ хадгалсны дараа энд түүх үүснэ." /> : checkins.slice(0, 6).map((checkin) => <div className="checkin-row" key={checkin.id}><strong>{checkin.progressPercent}% · {new Date(checkin.createdAt).toLocaleDateString("mn-MN")}</strong><p>{checkin.progressSummary}</p><small>{checkin.needsHelp ? "Тусламж хүссэн" : "Дараагийн focus"}: {checkin.needsHelp ? checkin.helpRequest || checkin.blocker : checkin.nextFocus}</small></div>)}</article>
+      <article className="panel checkin-history"><div className="panel-heading"><div><p className="eyebrow blue">ӨМНӨХ ЯВЦ</p><h3>Сүүлийн тэмдэглэлүүд</h3></div><span className="count-badge">{checkins.length}</span></div>{checkins.length === 0 ? <EmptyState title="Явцын тэмдэглэл алга" copy="Эхний 7 хоногийн үр дүнгээ хадгалсны дараа энд түүх үүснэ." /> : checkins.slice(0, 6).map((checkin) => <div className="checkin-row" key={checkin.id}><strong>{checkin.progressPercent}% · {new Date(checkin.createdAt).toLocaleDateString("mn-MN")}</strong><p>{checkin.progressSummary}</p><small>{checkin.needsHelp ? "Тусламж хүссэн" : "Дараагийн гол ажил"}: {checkin.needsHelp ? checkin.helpRequest || checkin.blocker : checkin.nextFocus}</small></div>)}</article>
     </div>
   );
 }

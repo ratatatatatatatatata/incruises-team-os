@@ -1,4 +1,5 @@
 import type { AcademyLessonCandidate, StarterAnswers, SuccessMapPlan } from "./contracts";
+import { parseWeeklyCapacityMinutes } from "./capacity.mjs";
 
 const DAY_LABELS = ["1 дэх өдөр", "2 дахь өдөр", "3 дахь өдөр", "4 дэх өдөр", "5 дахь өдөр", "6 дахь өдөр", "7 дахь өдөр"];
 
@@ -81,16 +82,9 @@ export function actionConflictsWithAnswers(answers: StarterAnswers, actionText: 
 }
 
 export function actionMinutes(capacity: string) {
+  const parsedMinutes = parseWeeklyCapacityMinutes(capacity);
+  if (parsedMinutes !== null) return parsedMinutes;
   const normalized = normalizeMongolianIntent(capacity);
-  const minuteMatch = normalized.match(/(\d{1,3})\s*(?:минут|мин)(?=\s|$|[,.])/u);
-  if (minuteMatch) return Math.max(5, Math.min(45, Number(minuteMatch[1])));
-
-  const hourMatch = normalized.match(/(?:^|\s)(\d{1,2}(?:[.,]\d{1,2})?)\s*цаг(?=\s|$|[,.])/u);
-  if (hourMatch) {
-    const totalMinutes = Math.round(Number(hourMatch[1].replace(",", ".")) * 60);
-    return Math.max(5, Math.min(45, totalMinutes));
-  }
-
   if (containsAny(normalized, ["бага", "завгүй"])) return 10;
   if (containsAny(normalized, ["өдөр бүр", "бүтэн"])) return 45;
   return 30;
@@ -116,8 +110,8 @@ function focusTrack(answers: StarterAnswers): FocusTrack {
 function focusLabel(track: FocusTrack) {
   return {
     content: "контент",
-    follow_up: "follow-up",
-    discovery: "discovery уулзалт",
+    follow_up: "эргэж холбогдох ажил",
+    discovery: "хэрэгцээ тодруулах яриа",
     communication: "илтгэх ба харилцах чадвар",
     learning: "сургалт",
     team: "багийн удирдлага",
@@ -130,20 +124,26 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
   weekly: ActionTemplate[];
   measures: string[];
 } {
-  const goal = `“${answers.goal30Day}”`;
-  const blocker = `“${answers.primaryBlocker}”`;
   const commonReview: ActionTemplate = {
-    title: "Баасан гарагт үр дүнгээ дүгнэх",
+    title: "7 хоногийн үр дүнгээ дүгнэх",
     detail: "Хийсэн ажил, авсан хариу, гарсан саадаа нэг дор тэмдэглээд дараагийн 7 хоногийн хамгийн чухал 3 ажлыг сонго.",
     doneWhen: "Бодит үр дүн, саад, дараагийн 3 ажил бичигдсэн байна.",
   };
 
   if (track === "content") {
+    const contentText = `${answers.goal30Day} ${answers.growthPreferences}`;
+    const format = containsPositiveAny(contentText, ["reel"])
+      ? { label: "reel", possessive: "reel-ийн" }
+      : containsPositiveAny(contentText, ["video", "видео"])
+        ? { label: "видео", possessive: "видеоны" }
+        : containsPositiveAny(contentText, ["facebook", "пост"])
+          ? { label: "пост", possessive: "постын" }
+          : { label: "контент", possessive: "контентын" };
     return {
       today: {
-        title: "Нэг тодорхой контентын ноорог гаргах",
-        detail: `${goal}-д хүрэхэд хэрэгтэй нэг хэрэглэгчийн асуултыг сонго. Тэр асуултад хариулах 5–7 өгүүлбэрийн нооргийг ${minutes} минутад бичээд нийтлэхээс өмнөх review-д бэлд.`,
-        doneWhen: "Нэг асуултад хариулсан 5–7 өгүүлбэрийн ноорог review-д бэлэн болсон байна.",
+        title: `Эхний ${format.possessive} 5–7 өгүүлбэрийг бичих`,
+        detail: `Хүмүүсээс бодитоор ирсэн нэг асуултыг сонго. ${minutes} минутын дотор тэр асуултад хариулсан 5–7 өгүүлбэртэй ${format.label} бэлд. Нийтлэхээсээ өмнө хүнээр хянуул.`,
+        doneWhen: `Нэг бодит асуултад хариулсан 5–7 өгүүлбэртэй ${format.label} хүнээр хянуулахад бэлэн болсон байна.`,
       },
       weekly: [
         {
@@ -152,50 +152,50 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
           doneWhen: "1 үзэгчийн тодорхойлолт, 3 бодит асуулт бичигдсэн байна.",
         },
         {
-          title: "3 ноорог бэлдэж, 1-ийг review-д оруулах",
-          detail: "Асуулт бүрээр нэг богино ноорог бич. Баталгаагүй амлалт, эх сурвалжгүй claim-ийг хасаад хамгийн ойлгомжтой нэгийг хүний review-д өг.",
-          doneWhen: "3 ноорогтой, 1 ноорог review-д орсон байна.",
+          title: "3 ноорог бэлдэж, нэгийг нь хүнээр хянуулах",
+          detail: "Асуулт бүрээр нэг богино ноорог бич. Баталгаагүй амлалт, эх сурвалжгүй өгүүлбэрийг хасаад хамгийн ойлгомжтой нэгийг хүнээр хянуул.",
+          doneWhen: "3 ноорогтой, нэг ноорог нь хүний хяналтад орсон байна.",
         },
         commonReview,
       ],
-      measures: ["Бэлдсэн нооргийн тоо", "Review-д оруулсан контентын тоо", "Авсан бодит асуулт эсвэл хариу үйлдлийн тоо"],
+      measures: ["Бэлдсэн нооргийн тоо", "Хүнээр хянуулсан контентын тоо", "Авсан бодит асуулт эсвэл хариу үйлдлийн тоо"],
     };
   }
 
   if (track === "follow_up") {
     return {
       today: {
-        title: "Follow-up хийх хүмүүсээ дараалуулах",
+        title: "Эргэж холбогдох эхний 3 хүнээ сонгох",
         detail: `Хариу хүлээж буй хүмүүсээ нэг жагсаалтад оруулаад хамгийн түрүүнд холбогдох 3 хүнийг сонго. ${minutes} минутад дарамтгүй, дараагийн алхамтай богино мессеж бэлд.`,
         doneWhen: "Холбогдох эхний 3 хүн ба илгээх нэг богино мессеж бэлэн болсон байна.",
       },
       weekly: [
         {
-          title: "Follow-up жагсаалтаа нэг дор болгох",
+          title: "Эргэж холбогдох жагсаалтаа нэг дор болгох",
           detail: "Нэр, өмнөх ярианы огноо, хэрэгцээ, дараагийн алхам гэсэн 4 баганатай жагсаалт үүсгэ.",
           doneWhen: "Холбогдох хүн бүр дараагийн алхам, огноотой болсон байна.",
         },
         {
-          title: "3 бодит follow-up хийж, хариуг тэмдэглэх",
+          title: "3 хүнтэй эргэж холбогдоод хариуг тэмдэглэх",
           detail: "Эхний 3 хүнд хувийн нөхцөлд нь тохирсон мессеж илгээж, хариу болон дараагийн алхмыг бүртгэ.",
-          doneWhen: "3 follow-up-ийн илгээсэн огноо, хариу, дараагийн алхам бүртгэгдсэн байна.",
+          doneWhen: "3 хүнд илгээсэн огноо, авсан хариу, дараагийн алхам бүртгэгдсэн байна.",
         },
         commonReview,
       ],
-      measures: ["Хийсэн follow-up-ийн тоо", "Хариу авсан хүний тоо", "Товлосон дараагийн яриа эсвэл уулзалтын тоо"],
+      measures: ["Эргэж холбогдсон хүний тоо", "Хариу авсан хүний тоо", "Товлосон дараагийн яриа эсвэл уулзалтын тоо"],
     };
   }
 
   if (track === "discovery") {
     return {
       today: {
-        title: "Discovery ярианыхаа 5 асуултыг бэлдэх",
-        detail: `${goal}-д хүрэхэд хэрэгтэй хэрэглэгчийн нөхцөл, хэрэгцээ, саадыг тодруулах 5 нээлттэй асуулт бич. ${minutes} минутын дараа нэг асуултыг чангаар туршиж зас.`,
+        title: "Хэрэгцээг нь ойлгох 5 асуулт бэлдэх",
+        detail: `Харилцаж буй хүний нөхцөл, хэрэгцээ, саадыг ойлгох 5 нээлттэй асуулт бич. ${minutes} минутын дараа нэг асуултыг чангаар туршиж зас.`,
         doneWhen: "5 нээлттэй асуулт бичиж, нэгийг нь чангаар туршаад зассан байна.",
       },
       weekly: [
         {
-          title: "Discovery асуултын дараалал үүсгэх",
+          title: "Хэрэгцээ тодруулах асуултуудаа дараалуулах",
           detail: "Нөхцөл → хэрэгцээ → саад → хүссэн үр дүн → дараагийн алхам гэсэн дарааллаар асуултаа байрлуул.",
           doneWhen: "5 асуулт нэг ойлгомжтой дараалалд орсон байна.",
         },
@@ -206,7 +206,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
         },
         commonReview,
       ],
-      measures: ["Хийсэн discovery ярианы тоо", "Тодорхой болсон хэрэгцээний тоо", "Харилцан зөвшөөрсөн дараагийн алхмын тоо"],
+      measures: ["Хэрэгцээ тодруулсан ярианы тоо", "Тодорхой болсон хэрэгцээний тоо", "Харилцан зөвшөөрсөн дараагийн алхмын тоо"],
     };
   }
 
@@ -214,7 +214,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
     return {
       today: {
         title: "Нэг минутын илтгэлээ бэлдэж, чангаар хэлэх",
-        detail: `${goal}-той холбоотой нэг гол санааг эхлэл, гол санаа, төгсгөл гэсэн 3 өгүүлбэрээр бич. ${minutes} минутад нэг удаа чангаар хэлээд хамгийн ойлгомжгүй нэг өгүүлбэрээ зас.`,
+        detail: `Өөрийн зорилготой холбоотой нэг санааг эхлэл, гол санаа, төгсгөл гэсэн 3 өгүүлбэрээр бич. ${minutes} минутад нэг удаа чангаар хэлээд хамгийн ойлгомжгүй нэг өгүүлбэрээ зас.`,
         doneWhen: "3 өгүүлбэр бичиж, нэг удаа чангаар хэлээд ойлгомжгүй нэг өгүүлбэрээ зассан байна.",
       },
       weekly: [
@@ -238,7 +238,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
     return {
       today: {
         title: "Нэг ойлголтыг сурч, өөрийн үгээр тайлбарлах",
-        detail: `${blocker} гэдэг саадтай хамгийн ойр Academy хичээлийг ${minutes} минут судлаад гол санааг 3 өгүүлбэрээр өөрийн үгээр бич.`,
+        detail: `Одоогийн гол саадтай хамгийн ойр Academy хичээлийг ${minutes} минут судлаад гол санааг 3 өгүүлбэрээр өөрийн үгээр бич.`,
         doneWhen: "Нэг хичээлийн гол санааг өөрийн үгээр 3 өгүүлбэрээр тайлбарласан байна.",
       },
       weekly: [
@@ -262,13 +262,13 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
     return {
       today: {
         title: "Багийн нэг саад, нэг эзэн, нэг хугацааг тодруулах",
-        detail: `${blocker} гэдэг саадыг шийдэх хамгийн жижиг ажлыг сонго. ${minutes} минутад хэн хийх, хэзээ дуусгах, дууссаныг юугаар мэдэхийг нэг мөрөөр баталгаажуул.`,
+        detail: `Багийн одоогийн нэг саадыг шийдэх хамгийн жижиг ажлыг сонго. ${minutes} минутад хэн хийх, хэзээ дуусгах, дууссаныг юугаар мэдэхийг нэг мөрөөр баталгаажуул.`,
         doneWhen: "Нэг ажил, хариуцах хүн, хугацаа, дуусах шалгуур нэг мөрөөр бичигдсэн байна.",
       },
       weekly: [
         {
           title: "Багийн 7 хоногийн нэг үр дүнг сонгох",
-          detail: `${goal}-той шууд холбоотой нэг үр дүнг багийн энэ 7 хоногийн тэргүүлэх чиглэл болго.`,
+          detail: "30 хоногийн зорилготой шууд холбоотой нэг үр дүнг багийн энэ 7 хоногийн тэргүүлэх чиглэл болго.",
           doneWhen: "Нэг үр дүн, эзэн, хугацаа багийн бүх хүнд ойлгомжтой болсон байна.",
         },
         {
@@ -285,7 +285,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
   return {
     today: {
       title: "30 хоногийн зорилгоос эхний ажлаа сонгох",
-      detail: `${goal}-ыг энэ 7 хоногт урагшлуулах хамгийн жижиг бодит ажлыг сонго. ${minutes} минутын календарийн цаг гаргаад дууссаныг юугаар мэдэхээ нэг өгүүлбэрээр бич.`,
+      detail: `30 хоногийн зорилгыг урагшлуулах хамгийн жижиг бодит ажлыг сонго. ${minutes} минутын календарийн цаг гаргаад дууссаныг юугаар мэдэхээ нэг өгүүлбэрээр бич.`,
       doneWhen: "Нэг жижиг ажил, хийх цаг, дуусах шалгуур календарь эсвэл тэмдэглэлд бичигдсэн байна.",
     },
     weekly: [
@@ -296,7 +296,7 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
       },
       {
         title: "Гол саадыг нэг туршилтаар багасгах",
-        detail: `${blocker} гэдэг саадыг багасгах нэг арга сонгоод бодит ажил дээр турш.`,
+        detail: "Одоогийн гол саадыг багасгах нэг арга сонгоод бодит ажил дээр турш.",
         doneWhen: "Туршсан арга, гарсан үр дүн, дараагийн өөрчлөлт тэмдэглэгдсэн байна.",
       },
       commonReview,
@@ -324,10 +324,24 @@ function lessonScore(lesson: AcademyLessonCandidate, combined: string) {
 
 function chooseLesson(lessons: AcademyLessonCandidate[], answers: StarterAnswers) {
   const combined = Object.values(answers).join(" ");
-  return [...lessons].sort((left, right) => {
+  const ranked = [...lessons].sort((left, right) => {
     const scoreDiff = lessonScore(right, combined) - lessonScore(left, combined);
     return scoreDiff || left.levelId.localeCompare(right.levelId) || left.title.localeCompare(right.title);
-  })[0] ?? null;
+  });
+  const best = ranked[0] ?? null;
+  return best && lessonScore(best, combined) >= 3 ? best : null;
+}
+
+function lessonReason(track: FocusTrack) {
+  return {
+    content: "Контентоо баталгаагүй амлалтгүй, ойлгомжтой тайлбарлахад туслах нэмэлт хичээл.",
+    follow_up: "Хүнтэй дарамтгүй эргэж холбогдох ажлаа хийхэд туслах нэмэлт хичээл.",
+    discovery: "Хүний хэрэгцээг асуултаар ойлгоход туслах нэмэлт хичээл.",
+    communication: "Санаагаа богино, ойлгомжтой хэлэхэд туслах нэмэлт хичээл.",
+    learning: "Одоогийн гол саадыг ойлгож, дадлага хийхэд туслах нэмэлт хичээл.",
+    team: "Багийн ажлыг эзэн, хугацаатай болгоход туслах нэмэлт хичээл.",
+    general: "Өнөөдрийн ажлаа хийхэд шууд хэрэглэж болох нэмэлт хичээл.",
+  }[track];
 }
 
 export function normalizeStarterAnswers(input: StarterAnswers): StarterAnswers {
@@ -378,7 +392,7 @@ export function createStarterPlan(
     weeklyActions: actionPlan.weekly,
     managementPlan: {
       focus: wantsTeamManagement
-        ? ["Нэг гол зорилго", "Ажил бүрийн эзэн ба хугацаа", "Долоо хоногийн bottleneck"]
+        ? ["Нэг гол зорилго", "Ажил бүрийн эзэн ба хугацаа", "Долоо хоногийн гол саад"]
         : ["Нэг гол зорилго", "Өдөр тутмын жижиг алхам", "Долоо хоногийн бодит ахиц"],
       cadence: [
         `Эхлээд: зөвхөн өнөөдрийн ${minutes} минутын нэг ажлыг хий.`,
@@ -395,16 +409,16 @@ export function createStarterPlan(
           `“${answers.goal30Day}” зорилготой холбоотой хэрэглэгчийн нэг асуултыг сонго.`,
           `${pillars[0]} сэдвээр 5 өгүүлбэрийн ноорог бич.`,
           `${pillars[1]} сэдвээр бодит жишээ эсвэл ажиглалтаа баримттай тэмдэглэ.`,
-          "Нооргийн claim бүрийг албан эх сурвалжтай тулгаж, баталгаагүй амлалтыг хас.",
-          "Нэг сувгийн хэлбэрт тохируулж, хүний review-д оруул.",
+          "Баримт шаардсан өгүүлбэр бүрийг албан эх сурвалжтай тулгаж, баталгаагүй амлалтыг хас.",
+          "Нэг сувгийн хэлбэрт тохируулж, хүнээр хянуул.",
           "Хариу үйлдэл, асуулт, уулзалтын тоог бүртгэ.",
-          "Үр дүнгээ review хийж дараагийн 7 хоногийн 3 сэдвийг сонго.",
+          "Үр дүнгээ дүгнэж, дараагийн 7 хоногийн 3 сэдвийг сонго.",
         ][index],
       })),
       guardrails: [
         "Орлого, үр дүнг баталгаатай мэт амлахгүй.",
-        "Албан мэдээлэл шаардсан claim бүрт Source Vault-ийн эх ашиглана.",
-        "Нийтлэхээс өмнө хүн заавал хянана; auto-publish хийхгүй.",
+        "Баримт шаардсан өгүүлбэр бүрт Source Vault-ийн албан эх ашиглана.",
+        "Нийтлэхээс өмнө хүн заавал хянана; автоматаар нийтлэхгүй.",
       ],
     } : null,
     academyRecommendation: recommendedLesson
@@ -413,7 +427,7 @@ export function createStarterPlan(
           levelId: recommendedLesson.levelId,
           title: recommendedLesson.title,
           minutes: recommendedLesson.minutes,
-          reason: "Таны зорилго, саад болон хүссэн ажлын хэлбэртэй хамгийн ойр, хараахан дуусаагүй Academy хичээл.",
+          reason: lessonReason(track),
         }
       : null,
     generation: {

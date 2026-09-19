@@ -36,6 +36,7 @@ test("available time is capped and never inflated", () => {
   assert.equal(actionMinutes("15 минут"), 15);
   assert.equal(actionMinutes("10 min"), 10);
   assert.equal(actionMinutes("15 minut"), 15);
+  assert.equal(actionMinutes("5"), 5);
   assert.equal(actionMinutes("0.25 цаг"), 15);
   assert.equal(actionMinutes("2 цаг"), 45);
 });
@@ -49,7 +50,7 @@ test("today action completion criterion matches the action and cadence adds no h
     growthPreferences: "Нэг жижиг контентын ажил, дараа нь feedback хэрэгтэй.",
   }, []);
 
-  assert.match(plan.todayAction.doneWhen, /5–7 өгүүлбэрийн ноорог/);
+  assert.match(plan.todayAction.doneWhen, /5–7 өгүүлбэр/);
   assert.doesNotMatch(plan.todayAction.doneWhen, /3 бодит асуулт/);
   assert.equal(plan.managementPlan.cadence.some((item) => /10 минут|20 минут/.test(item)), false);
 });

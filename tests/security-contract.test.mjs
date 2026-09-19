@@ -133,10 +133,10 @@ test("starter advice is explicit, measurable and upgrade-safe", async () => {
   assert.match(ai, /weeklyActions/);
   assert.match(ai, /successMeasures/);
   assert.match(ai, /Хэрэглэгчийн хариултад байхгүй орлого, үр дүн, хүний тоо эсвэл амжилтын тоон зорилт зохиож болохгүй/);
-  assert.match(app, /ӨНӨӨДРИЙН НЭГ АЖИЛ/);
+  assert.match(app, /ӨНӨӨДӨР ХИЙХ ГАНЦ АЖИЛ/);
   assert.match(app, /Start\/Done\/Blocked|Эхлэх|Тусламж хэрэгтэй/);
   assert.match(app, /Төлөвлөгөөг тодорхой болгох/);
-  assert.match(app, /Дууссан гэж үзэх шалгуур/);
+  assert.match(app, /Ингэвэл дууссан гэж үзнэ/);
   assert.match(route, /function sameOrigin/);
   assert.match(route, /contentLength > 32_000/);
 });
@@ -203,7 +203,7 @@ test("P1 support loop hardening is fail-closed and preserves member feedback his
   assert.match(followupMigration, /resolutionNote/);
   assert.match(workspace, /completedActionCountByMember/);
   assert.match(workspace, /myPracticesResult/);
-  assert.match(app, /Энэ нь feature flag-ийн алдаа биш/);
+  assert.match(app, /Доорх явцын хэсэгт бодит үр дүнгээ оруулна уу/);
   assert.match(app, /first30DayEnabled=\{workspace\.first30DayEnabled\}/);
   assert.match(app, /ДУУСГААГҮЙ ДАДЛАГА/);
   assert.match(app, /Coach feedback ба өмнөх дадлагын түүх/);

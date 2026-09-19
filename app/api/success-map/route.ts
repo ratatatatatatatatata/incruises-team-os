@@ -3,13 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeStarterAnswers, createStarterPlan } from "@/lib/success-map/planner";
 import { personalizeStarterPlan, STARTER_PLAN_MODEL } from "@/lib/success-map/ai";
 import type { AcademyLessonCandidate, StarterAnswers } from "@/lib/success-map/contracts";
+import { CLARIFICATION_GUIDANCE, clarificationMessage, clarificationReason, firstAnswerNeedingClarification } from "@/lib/success-map/clarification";
 
 const payloadSchema = z.object({
-  currentContext: z.string().trim().min(10).max(1600),
-  goal30Day: z.string().trim().min(10).max(1600),
-  weeklyCapacity: z.string().trim().min(3).max(800),
-  primaryBlocker: z.string().trim().min(10).max(1600),
-  growthPreferences: z.string().trim().min(10).max(1600),
+  currentContext: z.string().trim().max(1600),
+  goal30Day: z.string().trim().max(1600),
+  weeklyCapacity: z.string().trim().max(800),
+  primaryBlocker: z.string().trim().max(1600),
+  growthPreferences: z.string().trim().max(1600),
   aiConsent: z.boolean().default(false),
   supportSummaryConsent: z.boolean().default(false),
 }).strict();
@@ -32,6 +33,25 @@ export async function POST(request: Request) {
 
   const parsed = payloadSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return errorResponse("5 асуултад бүрэн, тодорхой хариулна уу.", 400);
+
+  const submittedAnswers: StarterAnswers = {
+    currentContext: parsed.data.currentContext,
+    goal30Day: parsed.data.goal30Day,
+    weeklyCapacity: parsed.data.weeklyCapacity,
+    primaryBlocker: parsed.data.primaryBlocker,
+    growthPreferences: parsed.data.growthPreferences,
+  };
+  const clarificationKey = firstAnswerNeedingClarification(submittedAnswers);
+  if (clarificationKey) {
+    const reason = clarificationReason(clarificationKey, submittedAnswers[clarificationKey]) ?? "needs_detail";
+    return Response.json({
+      error: clarificationMessage(reason),
+      code: "clarification_required",
+      clarificationReason: reason,
+      clarificationKey,
+      clarificationPrompt: CLARIFICATION_GUIDANCE[clarificationKey].prompt,
+    }, { status: 422, headers: { "Cache-Control": "no-store" } });
+  }
 
   const supabase = await createClient();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
@@ -86,7 +106,7 @@ export async function POST(request: Request) {
       minutes: Number(row.minutes),
     }));
 
-  const answers: StarterAnswers = normalizeStarterAnswers(parsed.data);
+  const answers: StarterAnswers = normalizeStarterAnswers(submittedAnswers);
   const deterministicPlan = createStarterPlan(answers, lessons);
   const personalized = parsed.data.aiConsent
     ? await personalizeStarterPlan(answers, deterministicPlan)
