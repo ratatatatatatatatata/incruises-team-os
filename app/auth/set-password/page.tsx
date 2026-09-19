@@ -52,7 +52,7 @@ export default async function SetPasswordPage({
           <input type="hidden" name="flow" value={recoveryFlow ? "recovery" : "invite"} />
           <label>Шинэ 8 оронтой PIN<input name="password" type="password" inputMode="numeric" pattern="[0-9]{8}" autoComplete="new-password" required minLength={8} maxLength={8} aria-describedby="pin-help" /></label>
           <label>PIN кодоо давтах<input name="confirmation" type="password" inputMode="numeric" pattern="[0-9]{8}" autoComplete="new-password" required minLength={8} maxLength={8} aria-describedby="pin-help" /></label>
-          <p className="signin-help" id="pin-help">8 цифр оруулна. 12345678, 11111111, төрсөн огноо, дараалсан эсвэл давтагдсан кодыг бүү ашигла.</p>
+          <p className="signin-help" id="pin-help">Яг 8 цифр оруулна. Аль ч 8 оронтой тоог PIN болгож болно.</p>
           <div className="signin-actions"><SetPasswordSubmitButton /></div>
         </form>
         <p className="signin-note">Имэйл: {email} · PIN кодоо бусадтай бүү хуваалцаарай.</p>

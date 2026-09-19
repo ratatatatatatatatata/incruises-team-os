@@ -21,12 +21,6 @@ function authErrorStatus(error) {
   return Number.isInteger(status) && status >= 100 && status <= 599 ? status : null;
 }
 
-function weakPasswordReasons(error) {
-  const reasons = error && typeof error === "object" && "reasons" in error ? error.reasons : null;
-  if (!Array.isArray(reasons)) return [];
-  return reasons.filter((reason) => reason === "length" || reason === "characters" || reason === "pwned");
-}
-
 /**
  * Return the only fields that may be written to server logs for an auth error.
  * In particular, provider messages, email addresses, and credentials are never
@@ -52,18 +46,10 @@ export function classifySetPasswordError(error) {
   }
 
   if (code === "weak_password") {
-    const reasons = weakPasswordReasons(error);
-    if (reasons.includes("length") || reasons.includes("characters")) {
-      return {
-        reason: "pin_policy_conflict",
-        message:
-          "PIN код хадгалагдсангүй. Системийн PIN хамгаалалтын тохиргоо 8 оронтой тоон PIN-тэй зөрчилдөж байна. Дахин дахин оролдохгүйгээр админд мэдэгдэнэ үү.",
-      };
-    }
     return {
-      reason: "weak_pin",
+      reason: "pin_policy_conflict",
       message:
-        "PIN код хадгалагдсангүй. Энэ PIN олон хэрэглэгддэг эсвэл таахад хялбар гэж хамгаалалтын систем татгалзлаа. Давхардсан, дараалсан бус өөр 8 оронтой тоо сонгоно уу.",
+        "PIN код хадгалагдсангүй. Аль ч 8 оронтой тоог зөвшөөрөх системийн тохиргоотой зөрчил илэрлээ. Дахин дахин оролдохгүйгээр админд мэдэгдэнэ үү.",
     };
   }
 
