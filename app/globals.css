@@ -419,7 +419,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .action-meta span { padding: 10px 12px; border-radius: 9px; background: #f1f6fb; color: var(--muted); font-size: 10px; }
 .action-meta strong { margin-right: 5px; color: var(--ink); }
 .action-meta .resource-meta { max-width: 560px; }
-.action-meta .resource-meta small { display: block; margin-top: 5px; color: #6d7c90; line-height: 1.45; }
+.action-meta .resource-meta small { display: block; margin-top: 5px; color: #45566c; font-size: 12px; line-height: 1.45; }
 .done-criterion { padding: 14px 16px; border-left: 3px solid var(--green); border-radius: 0 10px 10px 0; background: #f0faf6; }
 .done-criterion span, .done-criterion strong { display: block; }
 .done-criterion span { color: #42705f; font-size: 9px; font-weight: 850; text-transform: uppercase; letter-spacing: .07em; }

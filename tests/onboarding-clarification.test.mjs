@@ -76,6 +76,7 @@ test("client and API both enforce the shared clarification gate before save", as
   assert.match(route, /firstAnswerNeedingClarification\(submittedAnswers\)/);
   assert.match(route, /code: "clarification_required"/);
   assert.match(route, /status: 422/);
+  assert.match(route, /p_weekly_capacity: answers\.weeklyCapacity/);
   assert.ok(route.indexOf("firstAnswerNeedingClarification(submittedAnswers)") < route.indexOf("await createClient()"));
   assert.ok(route.indexOf("firstAnswerNeedingClarification(submittedAnswers)") < route.indexOf("await personalizeStarterPlan"));
   assert.ok(route.indexOf("firstAnswerNeedingClarification(submittedAnswers)") < route.indexOf("supabase.rpc"));

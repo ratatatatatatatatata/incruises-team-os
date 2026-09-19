@@ -59,3 +59,44 @@ test("Academy lesson is optional and shown only with a relevant plain-language r
   assert.match(relevantPlan.academyRecommendation?.reason ?? "", /нэмэлт хичээл/);
   assert.doesNotMatch(relevantPlan.academyRecommendation?.reason ?? "", /review|feedback|focus|check-in/i);
 });
+
+test("real Academy catalog matches the selected focus and respects a declined lesson", () => {
+  const catalog = [
+    { id: "l0-1", levelId: "l0", title: "inCruises-ийн философи ба зорилго", minutes: 8 },
+    { id: "l0-3", levelId: "l0", title: "Амлалт өгөхгүй зөв тайлбарлах", minutes: 12 },
+    { id: "l1-4", levelId: "l1", title: "L1 teach-back", minutes: 10 },
+    { id: "l2-1", levelId: "l2", title: "Discovery асуултын бүтэц", minutes: 10 },
+    { id: "l2-3", levelId: "l2", title: "Follow-up-ийн 3 алхам", minutes: 15 },
+    { id: "l3-3", levelId: "l3", title: "Builder-ийн долоо хоногийн хэмнэл", minutes: 22 },
+  ];
+
+  const speakingPlan = createStarterPlan({
+    currentContext: "Би шинээр эхэлж байгаа бөгөөд санаагаа бусдад ойлгомжтой хэлж сурахыг хүсэж байна.",
+    goal30Day: "Хурлын үеэр хоёр минут тасралтгүй, ойлгомжтой ярьдаг болно.",
+    weeklyCapacity: "15 минут",
+    primaryBlocker: "Яриагаа яаж эхлэхээ мэдэхгүй, бүтэц дээр хамгийн их гацдаг.",
+    growthPreferences: "Нэг удаад нэг богино ярих дасгал хиймээр байна.",
+  }, catalog);
+  assert.equal(speakingPlan.academyRecommendation?.lessonId, "l1-4");
+  assert.notEqual(speakingPlan.academyRecommendation?.lessonId, "l0-1");
+
+  const followUpPlan = createStarterPlan({
+    ...baseAnswers,
+    goal30Day: "Хариу хүлээж буй хүмүүстэй дарамтгүй эргэж холбогддог болно.",
+    primaryBlocker: "Өмнөх ярианаас хойш ямар мессеж бичихээ тодорхой мэдэхгүй байна.",
+    growthPreferences: "Follow-up хийх нэг жижиг ажил, бодит мессежийн жишээ хэрэгтэй.",
+  }, catalog);
+  assert.equal(followUpPlan.academyRecommendation?.lessonId, "l2-3");
+
+  const contentPlan = createStarterPlan(baseAnswers, catalog);
+  assert.equal(contentPlan.academyRecommendation?.lessonId, "l0-3");
+
+  const mixedPlanWithoutContentLesson = createStarterPlan(baseAnswers, [catalog.at(-1)]);
+  assert.equal(mixedPlanWithoutContentLesson.academyRecommendation, null);
+
+  const declinedLessonPlan = createStarterPlan({
+    ...baseAnswers,
+    growthPreferences: "Нэг удаад нэг жижиг контентын ажил өг. Academy сургалт хэрэггүй.",
+  }, catalog);
+  assert.equal(declinedLessonPlan.academyRecommendation, null);
+});

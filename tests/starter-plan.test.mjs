@@ -4,6 +4,7 @@ import {
   actionConflictsWithAnswers,
   actionMinutes,
   createStarterPlan,
+  normalizeStarterAnswers,
   normalizeMongolianIntent,
 } from "../lib/success-map/planner.ts";
 
@@ -39,6 +40,12 @@ test("available time is capped and never inflated", () => {
   assert.equal(actionMinutes("5"), 5);
   assert.equal(actionMinutes("0.25 цаг"), 15);
   assert.equal(actionMinutes("2 цаг"), 45);
+});
+
+test("bare numeric capacity is canonicalized before the current RPC length guard", () => {
+  const normalized = normalizeStarterAnswers({ ...speakingAnswers, weeklyCapacity: "5" });
+  assert.equal(normalized.weeklyCapacity, "5 минут");
+  assert.ok(normalized.weeklyCapacity.length >= 3);
 });
 
 test("today action completion criterion matches the action and cadence adds no hidden minutes", () => {

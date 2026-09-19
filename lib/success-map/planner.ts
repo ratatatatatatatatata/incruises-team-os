@@ -305,31 +305,57 @@ function trackActions(track: FocusTrack, answers: StarterAnswers, minutes: numbe
   };
 }
 
-function lessonScore(lesson: AcademyLessonCandidate, combined: string) {
-  const title = `${lesson.levelId} ${lesson.title}`.toLocaleLowerCase("mn-MN");
-  let score = 0;
-  const mappings = [
-    { query: ["контент", "пост", "сошиал", "facebook", "instagram", "video"], lesson: ["яриа", "discovery", "follow-up", "тайлбар"] },
-    { query: ["баг", "удирд", "менеж", "coach", "director"], lesson: ["builder", "success", "kpi", "coach", "director", "30/60/90"] },
-    { query: ["шинэ", "эхэл", "туршлагагүй"], lesson: ["философи", "member", "нөхцөл", "үндсэн"] },
-    { query: ["борлуул", "хэрэглэгч", "гишүүн", "уулзалт"], lesson: ["хэрэгцээ", "яриа", "follow-up", "тайлбар", "72 цаг"] },
-  ];
+const LESSON_MATCH_RULES: Record<FocusTrack, Array<{ terms: string[]; score: number }>> = {
+  content: [
+    { terms: ["амлалт өгөхгүй"], score: 8 },
+    { terms: ["тайлбарлах"], score: 5 },
+    { terms: ["compliance"], score: 4 },
+  ],
+  follow_up: [
+    { terms: ["follow-up", "эргэж холбог"], score: 9 },
+  ],
+  discovery: [
+    { terms: ["discovery"], score: 9 },
+    { terms: ["хэрэгцээ"], score: 7 },
+    { terms: ["аяллын зорилго", "асуултын бүтэц"], score: 6 },
+  ],
+  communication: [
+    { terms: ["teach-back"], score: 9 },
+    { terms: ["conversation", "яриа"], score: 7 },
+    { terms: ["тайлбарлах"], score: 5 },
+    { terms: ["баталгаажуулах"], score: 4 },
+  ],
+  learning: [
+    { terms: ["үндсэн ойлголт"], score: 9 },
+    { terms: ["мэдлэгийн шалгалт"], score: 8 },
+    { terms: ["философи", "member", "partner"], score: 5 },
+  ],
+  team: [
+    { terms: ["багийн kpi", "director"], score: 9 },
+    { terms: ["coach", "bottleneck"], score: 8 },
+    { terms: ["builder", "success review", "30/60/90"], score: 7 },
+    { terms: ["72 цаг"], score: 5 },
+  ],
+  general: [],
+};
 
-  for (const mapping of mappings) {
-    if (containsAny(combined, mapping.query) && containsAny(title, mapping.lesson)) score += 3;
-  }
-  if (title.includes("l0")) score += 1;
-  return score;
+function lessonScore(lesson: AcademyLessonCandidate, track: FocusTrack) {
+  const title = `${lesson.levelId} ${lesson.title}`.toLocaleLowerCase("mn-MN");
+  return LESSON_MATCH_RULES[track].reduce(
+    (score, rule) => score + (containsAny(title, rule.terms) ? rule.score : 0),
+    0,
+  );
 }
 
-function chooseLesson(lessons: AcademyLessonCandidate[], answers: StarterAnswers) {
+function chooseLesson(lessons: AcademyLessonCandidate[], answers: StarterAnswers, track: FocusTrack) {
   const combined = Object.values(answers).join(" ");
+  if (["academy", "хичээл", "сургалт"].some((term) => isNegated(combined, term))) return null;
   const ranked = [...lessons].sort((left, right) => {
-    const scoreDiff = lessonScore(right, combined) - lessonScore(left, combined);
+    const scoreDiff = lessonScore(right, track) - lessonScore(left, track);
     return scoreDiff || left.levelId.localeCompare(right.levelId) || left.title.localeCompare(right.title);
   });
   const best = ranked[0] ?? null;
-  return best && lessonScore(best, combined) >= 3 ? best : null;
+  return best && lessonScore(best, track) >= 4 ? best : null;
 }
 
 function lessonReason(track: FocusTrack) {
@@ -345,10 +371,12 @@ function lessonReason(track: FocusTrack) {
 }
 
 export function normalizeStarterAnswers(input: StarterAnswers): StarterAnswers {
+  const weeklyCapacity = clean(input.weeklyCapacity, 800).normalize("NFKC");
+  const bareCapacity = weeklyCapacity.match(/^([0-9]{1,3})$/u);
   return {
     currentContext: clean(input.currentContext, 1600),
     goal30Day: clean(input.goal30Day, 1600),
-    weeklyCapacity: clean(input.weeklyCapacity, 800),
+    weeklyCapacity: bareCapacity ? `${Number(bareCapacity[1])} минут` : weeklyCapacity,
     primaryBlocker: clean(input.primaryBlocker, 1600),
     growthPreferences: clean(input.growthPreferences, 1600),
   };
@@ -362,7 +390,7 @@ export function createStarterPlan(
   const minutes = actionMinutes(answers.weeklyCapacity);
   const track = focusTrack(answers);
   const actionPlan = trackActions(track, answers, minutes);
-  const recommendedLesson = chooseLesson(lessons, answers);
+  const recommendedLesson = chooseLesson(lessons, answers, track);
   const wantsTeamManagement = containsPositiveAny(
     `${answers.currentContext} ${answers.goal30Day} ${answers.growthPreferences}`,
     ["баг", "удирд", "менеж"],
