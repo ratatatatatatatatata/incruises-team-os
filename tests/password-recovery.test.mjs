@@ -10,6 +10,8 @@ test("new PIN policy accepts exactly eight ASCII digits", () => {
   assert.equal(PIN_LENGTH, 8);
   assert.equal(isEightDigitPin("48273195"), true);
   assert.equal(isEightDigitPin("00000000"), true);
+  assert.equal(isEightDigitPin("11111111"), true);
+  assert.equal(isEightDigitPin("12345678"), true);
   assert.equal(isEightDigitPin("4827319"), false);
   assert.equal(isEightDigitPin("482731950"), false);
   assert.equal(isEightDigitPin("4827a195"), false);
@@ -29,17 +31,18 @@ test("auth message redirects percent-encode Mongolian text into an ASCII-safe Lo
   assert.throws(() => authMessageRedirectPath("https://evil.example/login", "error", message), /current origin/);
 });
 
-test("set-password auth errors distinguish an idempotent save, weak PIN, and expired session", () => {
+test("set-password auth errors distinguish an idempotent save, provider policy drift, and expired session", () => {
   const alreadySaved = classifySetPasswordError({ code: "same_password", status: 422 });
   assert.equal(alreadySaved.reason, "already_saved");
 
   const weakPin = classifySetPasswordError({ code: "weak_password", status: 422 });
-  assert.equal(weakPin.reason, "weak_pin");
+  assert.equal(weakPin.reason, "pin_policy_conflict");
   assert.match(weakPin.message, /PIN код хадгалагдсангүй/);
-  assert.match(weakPin.message, /өөр 8 оронтой тоо/);
+  assert.match(weakPin.message, /Аль ч 8 оронтой тоог зөвшөөрөх/);
+  assert.match(weakPin.message, /админд мэдэгдэнэ үү/);
 
   const pwnedPin = classifySetPasswordError({ code: "weak_password", status: 422, reasons: ["pwned"] });
-  assert.equal(pwnedPin.reason, "weak_pin");
+  assert.equal(pwnedPin.reason, "pin_policy_conflict");
 
   const policyConflict = classifySetPasswordError({ code: "weak_password", status: 422, reasons: ["characters"] });
   assert.equal(policyConflict.reason, "pin_policy_conflict");
@@ -123,7 +126,8 @@ test("login ships an account-enumeration-safe Supabase password recovery flow", 
   assert.match(setPasswordPage, /pattern="\[0-9\]\{8\}"/);
   assert.match(setPasswordPage, /minLength=\{8\}/);
   assert.match(setPasswordPage, /maxLength=\{8\}/);
-  assert.match(setPasswordPage, /12345678, 11111111/);
+  assert.match(setPasswordPage, /Аль ч 8 оронтой тоог PIN болгож болно/);
+  assert.doesNotMatch(setPasswordPage, /бүү ашигла/);
   assert.match(setPasswordPage, /action=\{setPassword\}/);
   assert.match(setPasswordSubmit, /useFormStatus/);
   assert.match(setPasswordSubmit, /disabled=\{pending\}/);
