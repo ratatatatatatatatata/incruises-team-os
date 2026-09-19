@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { classifySetPasswordError, safeAuthErrorLog } from "../app/auth/auth-errors.mjs";
+import { authMessageRedirectPath } from "../app/auth/message-redirect.mjs";
 import { isEightDigitPin, PIN_LENGTH } from "../app/auth/pin-policy.mjs";
 import { passwordRecoveryOrigin, passwordRecoveryRedirectUrl } from "../app/auth/recovery-url.mjs";
 
@@ -13,6 +15,68 @@ test("new PIN policy accepts exactly eight ASCII digits", () => {
   assert.equal(isEightDigitPin("4827a195"), false);
   assert.equal(isEightDigitPin(" 48273195"), false);
   assert.equal(isEightDigitPin("４８２７３１９５"), false);
+});
+
+test("auth message redirects percent-encode Mongolian text into an ASCII-safe Location value", () => {
+  const message = "PIN код хадгалагдсангүй. Холбоосын хугацаа дууссан байна.";
+  const redirectPath = authMessageRedirectPath("/auth/set-password?flow=recovery", "error", message);
+  const parsed = new URL(redirectPath, "https://team.example");
+
+  assert.equal(parsed.pathname, "/auth/set-password");
+  assert.equal(parsed.searchParams.get("flow"), "recovery");
+  assert.equal(parsed.searchParams.get("error"), message);
+  assert.equal([...redirectPath].every((character) => character.charCodeAt(0) <= 0x7f), true);
+  assert.throws(() => authMessageRedirectPath("https://evil.example/login", "error", message), /current origin/);
+});
+
+test("set-password auth errors distinguish an idempotent save, weak PIN, and expired session", () => {
+  const alreadySaved = classifySetPasswordError({ code: "same_password", status: 422 });
+  assert.equal(alreadySaved.reason, "already_saved");
+
+  const weakPin = classifySetPasswordError({ code: "weak_password", status: 422 });
+  assert.equal(weakPin.reason, "weak_pin");
+  assert.match(weakPin.message, /PIN код хадгалагдсангүй/);
+  assert.match(weakPin.message, /өөр 8 оронтой тоо/);
+
+  const pwnedPin = classifySetPasswordError({ code: "weak_password", status: 422, reasons: ["pwned"] });
+  assert.equal(pwnedPin.reason, "weak_pin");
+
+  const policyConflict = classifySetPasswordError({ code: "weak_password", status: 422, reasons: ["characters"] });
+  assert.equal(policyConflict.reason, "pin_policy_conflict");
+  assert.match(policyConflict.message, /админд мэдэгдэнэ үү/);
+
+  const lengthConflict = classifySetPasswordError({ code: "weak_password", status: 422, reasons: ["length"] });
+  assert.equal(lengthConflict.reason, "pin_policy_conflict");
+
+  const expiredSession = classifySetPasswordError({ code: "session_not_found", status: 403 });
+  assert.equal(expiredSession.reason, "expired_session");
+  assert.match(expiredSession.message, /PIN код хадгалагдсангүй/);
+  assert.match(expiredSession.message, /шинэ холбоос/);
+
+  const explicitlyExpiredSession = classifySetPasswordError({ code: "session_expired", status: 403 });
+  assert.equal(explicitlyExpiredSession.reason, "expired_session");
+
+  const statusOnlySession = classifySetPasswordError({ status: 401 });
+  assert.equal(statusOnlySession.reason, "expired_session");
+
+  const providerFailure = classifySetPasswordError({ code: "unexpected_failure", status: 500 });
+  assert.equal(providerFailure.reason, "provider_error");
+  assert.match(providerFailure.message, /PIN код хадгалагдсангүй/);
+});
+
+test("auth log fields exclude provider messages, identity, and credentials", () => {
+  const fields = safeAuthErrorLog("set_password", {
+    code: "weak_password",
+    status: 422,
+    message: "email=user@example.com password=12345678",
+    email: "user@example.com",
+    password: "12345678",
+  });
+
+  assert.deepEqual(fields, { operation: "set_password", code: "weak_password", status: 422 });
+  assert.deepEqual(Object.keys(fields), ["operation", "code", "status"]);
+  assert.equal(JSON.stringify(fields).includes("user@example.com"), false);
+  assert.equal(JSON.stringify(fields).includes("12345678"), false);
 });
 
 test("password recovery accepts only operator-controlled callback origins", () => {
@@ -30,13 +94,14 @@ test("password recovery accepts only operator-controlled callback origins", () =
 });
 
 test("login ships an account-enumeration-safe Supabase password recovery flow", async () => {
-  const [login, loginCredential, forgotAction, confirmRoute, setPassword, setPasswordPage] = await Promise.all([
+  const [login, loginCredential, forgotAction, confirmRoute, setPassword, setPasswordPage, setPasswordSubmit] = await Promise.all([
     readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/login/login-credential-field.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/auth/forgot-password/actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/auth/set-password/actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/auth/set-password/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/auth/set-password/submit-button.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(login, /href="\/auth\/forgot-password"/);
   assert.match(loginCredential, /inputMode="numeric"/);
@@ -49,10 +114,18 @@ test("login ships an account-enumeration-safe Supabase password recovery flow", 
   assert.match(confirmRoute, /verifyOtp/);
   assert.match(confirmRoute, /type === "recovery"/);
   assert.match(setPassword, /updateUser\(\{ password \}\)/);
+  assert.match(setPassword, /failure\.reason === "already_saved"/);
+  assert.match(setPassword, /safeAuthErrorLog\("set_password", error\)/);
+  assert.match(setPassword, /authMessageRedirectPath\("\/auth\/forgot-password"/);
   assert.match(setPassword, /is_anonymous/);
   assert.match(setPassword, /isEightDigitPin\(password\)/);
   assert.match(setPasswordPage, /inputMode="numeric"/);
   assert.match(setPasswordPage, /pattern="\[0-9\]\{8\}"/);
   assert.match(setPasswordPage, /minLength=\{8\}/);
   assert.match(setPasswordPage, /maxLength=\{8\}/);
+  assert.match(setPasswordPage, /12345678, 11111111/);
+  assert.match(setPasswordPage, /action=\{setPassword\}/);
+  assert.match(setPasswordSubmit, /useFormStatus/);
+  assert.match(setPasswordSubmit, /disabled=\{pending\}/);
+  assert.match(setPasswordSubmit, /Хадгалж байна…/);
 });
