@@ -45,6 +45,8 @@ pnpm run dev
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+FIRST_30_DAY_LOOP_ENABLED=false
+MENTOR_LOOP_ENABLED=false
 ```
 
 Publishable key нь frontend-д ашиглагдах зориулалттай боловч хүснэгт бүр RLS-ээр хамгаалагдсан. Service role/secret key-ийг frontend болон repository-д хэзээ ч хадгалахгүй.
@@ -87,7 +89,9 @@ Invite template-ийн холбоос:
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/auth/set-password
 ```
 
-Hosted Supabase Auth дээр email provider-ийг ON, public user sign-up-ийг OFF, minimum password length-ийг 8, leaked-password protection-ийг ON болгоно. Вебийн урилга болон сэргээх урсгал шинэ PIN-г яг 8 цифр эсэхийг server талд шалгана. Одоогийн хэрэглэгчдийн хуучин нууц үгийг автоматаар солихгүй бөгөөд дараагийн reset хүртэл хэвээр ажиллана.
+Hosted Supabase Auth дээр email provider-ийг ON, public user sign-up-ийг OFF, minimum password length-ийг 8 болгоно. Бүтээгдэхүүний одоогийн шийдвэрээр ямар ч яг 8 цифрийг PIN болгон зөвшөөрөхийн тулд leaked-password protection OFF байгаа; энэ нь сул PIN ашиглах эрсдэлтэйг release бүрт нээлттэй тэмдэглэнэ. Вебийн урилга болон сэргээх урсгал шинэ PIN-г яг 8 цифр эсэхийг server талд шалгана. Одоогийн хэрэглэгчдийн хуучин нууц үгийг автоматаар солихгүй бөгөөд дараагийн reset хүртэл хэвээр ажиллана.
+
+`MENTOR_LOOP_ENABLED` нь зөвхөн mentor/check-in үргэлжлэлийг веб болон API дээр асаах feature flag. Үүнийг ON болгохоос өмнө `20260924004452_add_mentor_checkin_continuation.sql` migration-ийг тухайн орчинд ажиллуулж, `supabase/tests/mentor_loop_runtime.sql`-ийн authorization matrix-ийг preview дээр тэнцүүлнэ. Энэ flag нь database-ийн public RPC-ийг хаах kill switch биш; RPC өөрөө active membership болон ownership-ийг fail-closed шалгана.
 
 Шинэ auth user-д `public.user_profiles` болон идэвхтэй `user` membership автоматаар үүснэ. Админ шаардлагатай үед Builder, Coach, Director эсвэл Admin эрх олгоно. Role-г `user_metadata` эсвэл `user_profiles.role`-оос authorization-д ашиглахгүй.
 

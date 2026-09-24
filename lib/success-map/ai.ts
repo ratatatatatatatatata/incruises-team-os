@@ -3,7 +3,7 @@ import "server-only";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { StarterAnswers, SuccessMapPlan } from "./contracts";
-import { actionConflictsWithAnswers } from "./planner";
+import { actionConflictsWithAnswers, adviceNeedsSafetyFallback } from "./planner";
 
 export const STARTER_PLAN_MODEL = "openai/gpt-5.6-luna";
 
@@ -34,7 +34,7 @@ export async function personalizeStarterPlan(
   basePlan: SuccessMapPlan,
 ): Promise<{ plan: SuccessMapPlan; usedAi: boolean; fallbackReason: string | null }> {
   if (!hasGatewayCredential()) {
-    return { plan: basePlan, usedAi: false, fallbackReason: "AI Gateway credential тохируулаагүй." };
+    return { plan: basePlan, usedAi: false, fallbackReason: "Хиймэл оюуны үйлчилгээ одоогоор холбогдоогүй тул үндсэн төлөвлөгөөг ашиглана." };
   }
 
   try {
@@ -52,11 +52,17 @@ export async function personalizeStarterPlan(
         },
       },
       instructions: [
-        "Та inSuccess-ийн Personal AI planner.",
+        "Та inSuccess-ийн хувийн хөгжлийн чиглүүлэгч, ажлаа зохицуулах туслах.",
         "Зөвхөн өгсөн таван хариулт болон суурь төлөвлөгөөг ашиглан энгийн Монгол хэлээр товч, бодит, хэмжиж болох зөвлөмж өг.",
         "Зөвлөгөө бүр яг юу хийх, хэзээ дууссан гэж үзэхийг жирийн үгээр хэлнэ. 'Сайжруулах', 'төвлөрөх', 'өсгөх' гэх ерөнхий үгийг дангаар нь бүү хэрэглэ.",
         "Өнөөдрийн ажлын гарчгийг үйл үгээр төгсгө. detail нь нэг үйлдэлтэй 2–3 богино өгүүлбэр байна: эхлээд юу сонгох, дараа нь яг юу хийх, шаардлагатай бол хэнд үзүүлэхийг хэл.",
         "Монгол орчуулгатай үгийг англиар бүү бич. Review, feedback, focus, check-in, discovery, claim гэх тайлбаргүй мэргэжлийн үг бүү хэрэглэ.",
+        "Нас, боловсрол, технологийн мэдлэгийг таамаглахгүй. Цаасанд бичих зэрэг хялбар хувилбар санал болго; хүүхэдчилж эсвэл дээрээс харьцахгүй.",
+        "Мөрөөдөл, manifest гэдгийг хүссэн ирээдүйгээ тодорхойлоод өөрийн хийж чадах бодит алхамтай холбох гэж тайлбарла. Бодол дангаараа үр дүн авчирна, орчлон хүсэл биелүүлнэ гэсэн амлалт бүү өг.",
+        "Зорилгоо мэдэхгүй гэж тодруулсан хүнд зорилго сонгох нэг жижиг ажил өг. Саад байхгүй гэсэн хүний өмнөөс саад зохиохгүй.",
+        "Бизнесийн туршилт зөвхөн хэрэглэгч өөрөө хүссэн, суурь төлөвлөгөө түүнийг сонгосон үед орно. Өөрийгөө удирдахыг баг удирдахтай бүү андуур. Бизнес хийхгүй хүнд борлуулалт, элсүүлэлт, бизнесийн даалгавар бүү өг.",
+        "weeklyActions-ийн 3 бичлэг нь дараалан сонгож болох хувилбарууд, энэ долоо хоногт заавал хийх 3 ажил биш. Үргэлж дараагийн ганц ажлыг сонгоно. Хугацаа нь долоо хоногийн нийт боломж; нэмэлт өдөр бүрийн минут, уулзалт, хичээлээр хэтрүүлэхгүй. Цаг дуусвал дараагийн долоо хоногт үргэлжлүүлнэ.",
+        "Апп цагт нь мэдэгдэл илгээнэ, автоматаар сануулна, бүх түүхийг мэднэ гэж амлахгүй. Одоогийн ажил болон явцыг апп нээхэд харах боломжийн хүрээнд тайлбарла.",
         "Хэрэглэгчийн хариултад байхгүй орлого, үр дүн, хүний тоо эсвэл амжилтын тоон зорилт зохиож болохгүй.",
         "Хэрэглэгчийн 'хэрэггүй', 'хийхгүй', 'сонирхолгүй', 'үгүй', 'биш' гэсэн хориг болон үгүйсгэлийг яг мөрдөнө.",
         "Эхний дэлгэцийн зорилго бол зөвхөн нэг ажил. Content angle-ийг зөвхөн суурь төлөвлөгөө contentPlan-тэй үед өг; бусад үед null өг.",
@@ -65,7 +71,7 @@ export async function personalizeStarterPlan(
         "Хүний хяналт, албан эх сурвалж шаардлагатайг хэвээр үлдээ.",
       ].join(" "),
       prompt: JSON.stringify({
-        task: "Энэ starter profile-д зориулсан ойлгомжтой дүгнэлт, өнөөдөр хийх ганц ажил ба дуусах шалгуур, хүссэн үед нээх 7 хоногийн 3 ажил, удирдлагын 3 гол ажил, хэмжих 3 үзүүлэлт гарга. Контент хүсээгүй бол contentAngles null байна.",
+        task: "Таван хариултад тулгуурласан ойлгомжтой дүгнэлт, одоо хийх ганц ажил ба дуусах шалгуур гарга. weeklyActions-д дараалан сонгож болох 3 жижиг алхам; managementFocus-д нэг зорилго, нэг алхам, үр дүнгээ тэмдэглэх гэсэн 3 тайлбар; successMeasures-д ажиглах 3 зүйл өг. Бүгдийг зэрэг хийх үүрэг бүү үүсгэ. Контент хүсээгүй бол contentAngles null байна.",
         answers,
         basePlan: {
           todayAction: basePlan.todayAction,
@@ -75,13 +81,15 @@ export async function personalizeStarterPlan(
       }),
     });
 
-    const aiActionText = `${result.output.todayAction.title} ${result.output.todayAction.detail}`;
-    const todayAction = actionConflictsWithAnswers(answers, aiActionText)
-      ? basePlan.todayAction
-      : { ...result.output.todayAction, minutes: basePlan.todayAction.minutes };
-    const weeklyActions = result.output.weeklyActions.some((action) =>
-      actionConflictsWithAnswers(answers, `${action.title} ${action.detail}`),
-    ) ? basePlan.weeklyActions : result.output.weeklyActions;
+    if (adviceNeedsSafetyFallback(JSON.stringify(result.output), basePlan.todayAction.minutes)
+      || actionConflictsWithAnswers(answers, JSON.stringify(result.output))) {
+      return { plan: basePlan, usedAi: false, fallbackReason: "Хиймэл оюуны санал хугацаа эсвэл зөвлөгөөний хязгаарт тохироогүй тул үндсэн төлөвлөгөөг ашиглана." };
+    }
+
+    // These fields become supporter-readable member_actions (including later steps).
+    // A prompt cannot prevent private Q1 text being echoed or paraphrased by AI.
+    // Keep shareable actions on the non-raw deterministic templates; only the
+    // private success-map explanation may contain personalized AI wording.
     const managementFocus = actionConflictsWithAnswers(answers, result.output.managementFocus.join(" "))
       ? basePlan.managementPlan.focus
       : result.output.managementFocus;
@@ -93,8 +101,8 @@ export async function personalizeStarterPlan(
         ...basePlan,
         profileSummary: result.output.profileSummary,
         whyThisPlan: result.output.whyThisPlan,
-        todayAction,
-        weeklyActions,
+        todayAction: basePlan.todayAction,
+        weeklyActions: basePlan.weeklyActions,
         managementPlan: {
           ...basePlan.managementPlan,
           focus: managementFocus,
@@ -119,13 +127,13 @@ export async function personalizeStarterPlan(
     console.error("Starter plan AI enhancement failed", error instanceof Error ? error.name : "unknown_error");
     return {
       usedAi: false,
-      fallbackReason: "AI боловсруулалт түр ажилласангүй; дүрэмд суурилсан төлөвлөгөө хадгаллаа.",
+      fallbackReason: "Хиймэл оюуны үйлчилгээ түр ажилласангүй; үндсэн төлөвлөгөөг ашиглана.",
       plan: {
         ...basePlan,
         generation: {
           source: "deterministic",
           aiModel: null,
-          aiFallbackReason: "AI боловсруулалт түр ажилласангүй.",
+          aiFallbackReason: "Хиймэл оюуны үйлчилгээ түр ажилласангүй.",
         },
       },
     };

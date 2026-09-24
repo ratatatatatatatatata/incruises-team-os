@@ -15,7 +15,7 @@ test("screenshot-style content input becomes a plain, specific action", () => {
   const plan = createStarterPlan(baseAnswers, []);
   const visible = plainMongolianText(`${plan.todayAction.title} ${plan.todayAction.detail} ${plan.todayAction.doneWhen}`);
 
-  assert.match(plan.todayAction.title, /reel/i);
+  assert.match(plan.todayAction.title, /богино видео/i);
   assert.match(plan.todayAction.detail, /5–7 өгүүлбэр/);
   assert.equal(actionSteps(plan.todayAction.detail).length, 3);
   assert.doesNotMatch(visible, /review|feedback|focus|check-in|discovery|claim/i);

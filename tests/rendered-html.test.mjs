@@ -14,8 +14,8 @@ test("ships the Team OS application and Supabase login flow", async () => {
   assert.match(page, /TeamOsApp/);
   assert.match(page, /redirect\("\/login"\)/);
   assert.match(app, /Хяналтын төв/);
-  assert.match(app, /Content Studio/);
-  assert.match(app, /Source Vault/);
+  assert.match(app, /Нийтлэл бэлдэх/);
+  assert.match(app, /Албан эх сурвалж/);
   assert.match(login, /PRIVATE TEAM ACCESS/);
   assert.match(brand, /BRAND_NAME = "inSuccess"/);
   assert.doesNotMatch(page + app + login + brand, /inCruises/);

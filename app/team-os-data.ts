@@ -121,6 +121,7 @@ export const officialSources = [
 
 export type WorkspacePayload = {
   first30DayEnabled: boolean;
+  mentorLoopEnabled: boolean;
   viewer: {
     userId: string;
     role: "user" | "builder" | "coach" | "director" | "admin";
@@ -229,6 +230,8 @@ export type WorkspacePayload = {
     blockedReason: string;
     resourceLessonId: string | null;
     sequenceNo: number;
+    plannedFor: string | null;
+    sourceCheckinId: number | null;
     updatedAt: string;
   } | null;
   myActionHistory: Array<{

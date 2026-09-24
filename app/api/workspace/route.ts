@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { officialSources } from "../../team-os-data";
 import type { SuccessMapPlan } from "@/lib/success-map/contracts";
+import { createMentorAction, type MentorCheckin } from "@/lib/success-map/mentor";
 
 const allowedSourceIds = new Set<string>(officialSources.map((source) => source.id));
 const allowedChannels = new Set(["Facebook", "Instagram", "Short video", "FAQ", "Message"]);
@@ -111,6 +112,8 @@ type MemberActionRow = {
   blocked_reason: string;
   resource_lesson_id: string | null;
   sequence_no: number;
+  planned_for?: string | null;
+  source_checkin_id?: number | null;
   updated_at: string;
 };
 type SupportRequestRow = {
@@ -207,6 +210,10 @@ export async function GET() {
   try {
     const { supabase, userId, role } = await authorizedContext();
     const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
+    const mentorLoopEnabled = first30DayEnabled && process.env.MENTOR_LOOP_ENABLED === "true";
+    const memberActionSelect = mentorLoopEnabled
+      ? "id,member_user_id,title,detail,done_when,minutes,capacity_minutes,status,blocked_reason,resource_lesson_id,sequence_no,planned_for,source_checkin_id,updated_at"
+      : "id,member_user_id,title,detail,done_when,minutes,capacity_minutes,status,blocked_reason,resource_lesson_id,sequence_no,updated_at";
     const successMapSelect = first30DayEnabled
       ? "current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_source,ai_consent,support_summary_consent,completed_at,updated_at"
       : "current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_source,ai_consent,completed_at,updated_at";
@@ -273,10 +280,17 @@ export async function GET() {
     let academyPracticeRows: AcademyPracticeRow[] = [];
     let rankClaimRows: RankClaimRow[] = [];
     if (first30DayEnabled) {
-      const [actionsResult, supportRequestsResult, supportedPracticesResult, myPracticesResult, rankClaimsResult] = await Promise.all([
+      const [actionsResult, ownActionsResult, supportRequestsResult, supportedPracticesResult, myPracticesResult, rankClaimsResult] = await Promise.all([
         supabase
           .from("member_actions")
-          .select("id,member_user_id,title,detail,done_when,minutes,capacity_minutes,status,blocked_reason,resource_lesson_id,sequence_no,updated_at")
+          .select(memberActionSelect)
+          .neq("member_user_id", userId)
+          .order("updated_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("member_actions")
+          .select(memberActionSelect)
+          .eq("member_user_id", userId)
           .order("updated_at", { ascending: false })
           .limit(200),
         supabase
@@ -302,12 +316,14 @@ export async function GET() {
           .limit(200),
       ]);
       const featureError = actionsResult.error
+        ?? ownActionsResult.error
         ?? supportRequestsResult.error
         ?? supportedPracticesResult.error
         ?? myPracticesResult.error
         ?? rankClaimsResult.error;
       if (featureError) throw featureError;
-      actionRows = (actionsResult.data ?? []) as MemberActionRow[];
+      // The runtime feature flag chooses a select union the Supabase type parser cannot represent.
+      actionRows = [...(actionsResult.data ?? []), ...(ownActionsResult.data ?? [])] as unknown as MemberActionRow[];
       supportRequestRows = (supportRequestsResult.data ?? []) as SupportRequestRow[];
       academyPracticeRows = [...new Map(
         ([...(supportedPracticesResult.data ?? []), ...(myPracticesResult.data ?? [])] as AcademyPracticeRow[])
@@ -500,6 +516,8 @@ export async function GET() {
       blockedReason: activeActionRow.blocked_reason,
       resourceLessonId: activeActionRow.resource_lesson_id,
       sequenceNo: activeActionRow.sequence_no,
+      plannedFor: activeActionRow.planned_for ?? null,
+      sourceCheckinId: activeActionRow.source_checkin_id ?? null,
       updatedAt: activeActionRow.updated_at,
     } : null;
     const myActionHistory = ownActions.filter((action) => action.id !== activeActionRow?.id).map((action) => ({
@@ -548,6 +566,7 @@ export async function GET() {
 
     return Response.json({
       first30DayEnabled,
+      mentorLoopEnabled,
       viewer: {
         userId,
         role,
@@ -588,6 +607,10 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
     const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
+    const mentorLoopEnabled = first30DayEnabled && process.env.MENTOR_LOOP_ENABLED === "true";
+    if (action === "schedule_member_action" && !mentorLoopEnabled) {
+      return Response.json({ error: "Ажиллах цагаа товлох боломж одоогоор нээгдээгүй байна." }, { status: 503 });
+    }
     const featureActions = new Set([
       "transition_member_action",
       "change_member_action_time",
@@ -599,6 +622,24 @@ export async function POST(request: Request) {
     ]);
     if (featureActions.has(action) && !first30DayEnabled) {
       return Response.json({ error: "Эхний 30 хоногийн шинэ урсгал одоогоор идэвхжээгүй байна." }, { status: 503 });
+    }
+
+    if (action === "schedule_member_action") {
+      const actionId = String(body.actionId ?? "");
+      const plannedFor = body.plannedFor;
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const isTimestamp = typeof plannedFor === "string"
+        && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/u.test(plannedFor)
+        && Number.isFinite(new Date(plannedFor).getTime());
+      if (!uuidPattern.test(actionId) || (plannedFor !== null && !isTimestamp)) {
+        return Response.json({ error: "Хийх цагаа зөв сонгоно уу." }, { status: 400 });
+      }
+      const { data, error } = await supabase.rpc("schedule_my_member_action", {
+        p_action_id: actionId,
+        p_planned_for: typeof plannedFor === "string" ? new Date(plannedFor).toISOString() : null,
+      });
+      if (error) transitionFailure(error);
+      return Response.json({ action: data });
     }
 
     if (action === "transition_member_action") {
@@ -828,7 +869,8 @@ export async function POST(request: Request) {
       const nextFocus = String(body.nextFocus ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
       const progressPercent = Number(body.progressPercent);
       const needsHelp = body.needsHelp === true;
-      if (progressSummary.length < 3 || nextFocus.length < 3 || !Number.isInteger(progressPercent) || progressPercent < 0 || progressPercent > 100) {
+      if (progressSummary.length < 3 || nextFocus.length < 3 || !Number.isInteger(progressPercent) || progressPercent < 0 || progressPercent > 100
+        || (needsHelp && blocker.length < 3 && helpRequest.length < 3)) {
         return Response.json({ error: "Явц, дараагийн зорилго болон хувийг зөв оруулна уу." }, { status: 400 });
       }
       const { data: checkin, error } = await supabase
@@ -845,7 +887,51 @@ export async function POST(request: Request) {
         .select("id")
         .single();
       if (error) throw error;
-      return Response.json({ checkin }, { status: 201 });
+      let mentorActionCreated = false;
+      let mentorNotice: string | null = null;
+      if (mentorLoopEnabled) {
+        // The check-in is already durable. A continuation failure must not pretend the save failed.
+        try {
+          const [activeResult, mapResult] = await Promise.all([
+            supabase.from("member_actions").select("id").eq("member_user_id", userId)
+              .not("status", "in", "(done,superseded)").limit(1).maybeSingle(),
+            supabase.from("member_success_maps")
+              .select("current_context,goal_30_day,weekly_capacity,primary_blocker,growth_preferences,plan,plan_version")
+              .eq("user_id", userId).maybeSingle(),
+          ]);
+          if (activeResult.error || mapResult.error) throw activeResult.error ?? mapResult.error;
+          if (!activeResult.data && mapResult.data) {
+            const map = mapResult.data;
+            const checkinContext: MentorCheckin = { progressSummary, blocker, helpRequest, nextFocus, progressPercent, needsHelp };
+            const suggestion = createMentorAction({
+              currentContext: map.current_context,
+              goal30Day: map.goal_30_day,
+              weeklyCapacity: map.weekly_capacity,
+              primaryBlocker: map.primary_blocker,
+              growthPreferences: map.growth_preferences,
+            }, map.plan as SuccessMapPlan, checkinContext);
+            if (suggestion) {
+              const { data: nextAction, error: continuationError } = await supabase.rpc("continue_my_member_path", {
+                p_checkin_id: checkin.id,
+                p_expected_plan_version: map.plan_version,
+                p_title: suggestion.title,
+                p_detail: suggestion.detail,
+                p_done_when: suggestion.doneWhen,
+                p_minutes: suggestion.minutes,
+                p_capacity_minutes: suggestion.capacityMinutes,
+              });
+              if (continuationError) throw continuationError;
+              mentorActionCreated = nextAction?.source_checkin_id === checkin.id;
+            } else {
+              mentorNotice = "Явц хадгалагдлаа. Боломжит цагаа таван асуултын хэсэгт тодруулбал дараагийн ажлыг гаргана.";
+            }
+          }
+        } catch {
+          console.error("Mentor continuation unavailable after check-in save");
+          mentorNotice = "Явц хадгалагдсан. Дараагийн ажлыг одоогоор гаргаж чадсангүй; өмнөх ажлыг өөрчлөөгүй.";
+        }
+      }
+      return Response.json({ checkin, mentorActionCreated, mentorNotice }, { status: 201 });
     }
 
     if (action === "add_coach_note") {

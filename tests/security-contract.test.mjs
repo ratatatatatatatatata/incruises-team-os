@@ -62,7 +62,8 @@ test("starter map uses exactly five private answers with explicit AI consent", a
   ]);
 
   assert.equal((form.match(/title: "[1-5]\./g) ?? []).length, 5);
-  assert.match(form, /Personal AI-аар илүү нарийвчлуулах/);
+  assert.match(form, /Хиймэл оюунаар зөвлөгөөг илүү ойлгомжтой найруулах/);
+  assert.match(form, /Энэ зөвшөөрөл нь цаашдын явц, ярианы түүхийг хамрахгүй/);
   assert.match(route, /p_ai_consent/);
   assert.match(migration, /member_success_maps_select_active_own/);
   assert.doesNotMatch(migration, /member_success_maps_select_admin/);
@@ -102,9 +103,12 @@ test("sponsor and coach operations expose only purpose-limited summaries", async
   assert.match(workspaceRoute, /member_success_summaries/);
   assert.match(workspaceRoute, /weekly_checkin/);
   assert.match(workspaceRoute, /add_coach_note/);
-  assert.match(onboarding, /purpose-limited summary/);
+  assert.match(onboarding, /4 хариулт бичсэнээрээ харагдана/);
+  assert.match(onboarding, /Эдгээрийг автоматаар хураангуйлахгүй/);
+  assert.match(onboarding, /Доор зөвшөөрсөн үед/);
   assert.match(onboarding, /\/auth\/signout/);
-  assert.match(app, /Түүхий 5 хариулт харагдахгүй/);
+  assert.match(app, /зорилго, боломжит цаг, (?:гол )?саад, хүссэн тусламж/);
+  assert.match(app, /бичсэнээр нь/);
 });
 
 test("sponsor relationship foreign keys have covering indexes", async () => {
@@ -125,7 +129,7 @@ test("starter advice is explicit, measurable and upgrade-safe", async () => {
     readFile(new URL("../app/api/workspace/route.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(planner, /type FocusTrack = "content" \| "follow_up" \| "discovery" \| "communication" \| "learning" \| "team" \| "general"/);
+  assert.match(planner, /type FocusTrack = [^\n]*"content"[^\n]*"communication"[^\n]*"self_management"[^\n]*"vision"[^\n]*"entrepreneurship"[^\n]*"general"/);
   assert.match(planner, /version: 3/);
   assert.match(planner, /doneWhen/);
   assert.match(planner, /normalizeMongolianIntent/);
@@ -133,7 +137,7 @@ test("starter advice is explicit, measurable and upgrade-safe", async () => {
   assert.match(ai, /weeklyActions/);
   assert.match(ai, /successMeasures/);
   assert.match(ai, /Хэрэглэгчийн хариултад байхгүй орлого, үр дүн, хүний тоо эсвэл амжилтын тоон зорилт зохиож болохгүй/);
-  assert.match(app, /ӨНӨӨДӨР ХИЙХ ГАНЦ АЖИЛ/);
+  assert.match(app, /ОДОО ХИЙХ НЭГ АЖИЛ/);
   assert.match(app, /Start\/Done\/Blocked|Эхлэх|Тусламж хэрэгтэй/);
   assert.match(app, /Төлөвлөгөөг тодорхой болгох/);
   assert.match(app, /Ингэвэл дууссан гэж үзнэ/);
@@ -166,9 +170,9 @@ test("first 30 day loop is additive, gated and relationship-scoped", async () =>
   assert.doesNotMatch(indexMigration, /drop|delete|truncate/i);
   assert.match(workspace, /FIRST_30_DAY_LOOP_ENABLED/);
   assert.match(env, /FIRST_30_DAY_LOOP_ENABLED=false/);
-  assert.match(app, /Түүхий 5 хариулт харагдахгүй/);
-  assert.match(app, /Rank мэдээллийг зөвхөн нотолгоотой бүртгэнэ/);
-  assert.match(app, /хэрэглэгчийн эрх, Academy access, зөвлөмжийг өөрчлөхгүй/);
+  assert.match(app, /зорилго, боломжит цаг, (?:гол )?саад, хүссэн тусламж/);
+  assert.match(app, /Зэрэглэлийн мэдээллийг баримттай бүртгэнэ/);
+  assert.match(app, /Хэрэглэгчийн эрх, сургалт үзэх боломж, зөвлөмжийг өөрчлөхгүй/);
 });
 
 test("P1 support loop hardening is fail-closed and preserves member feedback history", async () => {
@@ -203,12 +207,12 @@ test("P1 support loop hardening is fail-closed and preserves member feedback his
   assert.match(followupMigration, /resolutionNote/);
   assert.match(workspace, /completedActionCountByMember/);
   assert.match(workspace, /myPracticesResult/);
-  assert.match(app, /Доорх явцын хэсэгт бодит үр дүнгээ оруулна уу/);
+  assert.match(app, /Доорх явцын хэсэгт хийсэн зүйлээ бичээрэй/);
   assert.match(app, /first30DayEnabled=\{workspace\.first30DayEnabled\}/);
-  assert.match(app, /ДУУСГААГҮЙ ДАДЛАГА/);
-  assert.match(app, /Coach feedback ба өмнөх дадлагын түүх/);
+  assert.match(app, /Өмнөх дуусгаагүй дадлага/);
+  assert.match(app, /Дасгалжуулагчийн санал ба өмнөх дадлага/);
   assert.match(app, /nextCheckAt: nextCheckAt \? new Date\(nextCheckAt\)\.toISOString\(\) : null/);
-  assert.match(onboarding, /ажил, амьдрал, сурч байгаа зүйл/i);
+  assert.match(onboarding, /Ажил, гэр бүл, сурч байгаа зүйл/i);
   assert.match(onboardingPage, /initialSupportSummaryConsent=\{row\?\.support_summary_consent \?\? false\}/);
   assert.match(successMapRoute, /supportSummaryConsent: z\.boolean\(\)\.default\(false\)/);
 });

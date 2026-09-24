@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeStarterAnswers, createStarterPlan } from "@/lib/success-map/planner";
 import { personalizeStarterPlan, STARTER_PLAN_MODEL } from "@/lib/success-map/ai";
-import type { AcademyLessonCandidate, StarterAnswers } from "@/lib/success-map/contracts";
+import type { AcademyLessonCandidate, StarterAnswers, SuccessMapPlan } from "@/lib/success-map/contracts";
 import { CLARIFICATION_GUIDANCE, clarificationMessage, clarificationReason, firstAnswerNeedingClarification } from "@/lib/success-map/clarification";
 
 const payloadSchema = z.object({
@@ -111,6 +111,14 @@ export async function POST(request: Request) {
   const personalized = parsed.data.aiConsent
     ? await personalizeStarterPlan(answers, deterministicPlan)
     : { plan: deterministicPlan, usedAi: false, fallbackReason: null };
+  // Enforce the private/shared boundary immediately before persistence as well.
+  // Both the initial action and future actions are copied by database triggers/RPCs
+  // into supporter-readable rows, so no free-form AI action may reach this payload.
+  const persistedPlan: SuccessMapPlan = {
+    ...personalized.plan,
+    todayAction: deterministicPlan.todayAction,
+    weeklyActions: deterministicPlan.weeklyActions,
+  };
   const planSource = personalized.usedAi ? "ai_gateway" : "deterministic";
   const aiModel = personalized.usedAi ? STARTER_PLAN_MODEL : null;
 
@@ -122,7 +130,7 @@ export async function POST(request: Request) {
     p_weekly_capacity: answers.weeklyCapacity,
     p_primary_blocker: answers.primaryBlocker,
     p_growth_preferences: answers.growthPreferences,
-    p_plan: personalized.plan,
+    p_plan: persistedPlan,
     p_plan_source: planSource,
     p_ai_consent: parsed.data.aiConsent,
     p_ai_model: aiModel,
@@ -138,7 +146,7 @@ export async function POST(request: Request) {
 
   return Response.json({
     ok: true,
-    plan: personalized.plan,
+    plan: persistedPlan,
     planSource,
     aiFallbackReason: personalized.fallbackReason,
     completedAt: saved?.completed_at ?? new Date().toISOString(),
