@@ -49,5 +49,5 @@ jobs:
       - name: Validate Expo configuration
         run: npx expo config --type public
 
-      - name: Build and submit iOS production
-        run: npx eas-cli@latest build --platform ios --profile production --non-interactive --auto-submit
+      - name: Submit latest iOS production build
+        run: npx eas-cli@latest submit --platform ios --profile production --latest --non-interactive
