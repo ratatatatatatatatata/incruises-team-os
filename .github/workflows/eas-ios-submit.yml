@@ -5,7 +5,8 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/eas-ios-submit.yml"\n      - "apps/mobile/eas.json"
+      - ".github/workflows/eas-ios-submit.yml"
+      - "apps/mobile/eas.json"
 
 permissions:
   contents: read
