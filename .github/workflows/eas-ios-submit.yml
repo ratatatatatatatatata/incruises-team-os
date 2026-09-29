@@ -1,0 +1,52 @@
+name: Build and submit iOS to App Store
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/eas-ios-submit.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eas-ios-submit
+  cancel-in-progress: false
+
+jobs:
+  build-submit-ios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm ci
+
+      - name: Verify Expo authentication
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN GitHub secret is missing."
+            exit 1
+          fi
+          npx eas-cli@latest whoami
+
+      - name: Validate Expo configuration
+        run: npx expo config --type public
+
+      - name: Build and submit iOS production
+        run: npx eas-cli@latest build --platform ios --profile production --non-interactive --auto-submit
