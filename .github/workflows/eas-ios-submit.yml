@@ -50,6 +50,8 @@ jobs:
 
       - name: Validate Expo configuration
         run: npx expo config --type public
+      - name: Validate Expo SDK dependency compatibility
+        run: npx --yes expo-doctor@1.20.4
 
       - name: Verify mobile source, assets and dependency patch
         run: |
