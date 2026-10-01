@@ -17,3 +17,11 @@ export function localSchedule(day: string, time: string, now = Date.now()) {
   if (value.getFullYear() !== year || value.getMonth() !== month - 1 || value.getDate() !== date || value.getHours() !== hour || value.getMinutes() !== minute || value.getTime() <= now) return null;
   return value.toISOString();
 }
+
+/** Mirror the existing RPC state machine; this is presentation, not authorization. */
+export function supportTransitions(status: string): string[] {
+  if (status === 'assigned' || status === 'unassigned') return ['acknowledged', 'in_progress'];
+  if (status === 'acknowledged') return ['in_progress', 'resolved'];
+  if (status === 'in_progress') return ['resolved'];
+  return [];
+}

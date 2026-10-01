@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { actionView, localSchedule } from '../apps/mobile/src/lib/action-view.ts';
+import { actionView, localSchedule, supportTransitions } from '../apps/mobile/src/lib/action-view.ts';
 test('mentor reason is never rendered as the first task; older actions keep their first step', () => {
   const detail = 'Таны явцад тулгуурласан. Нэг мөр бич. Нэг удаа турш.';
   assert.equal(actionView(detail, 12).reason, 'Таны явцад тулгуурласан.');
@@ -14,4 +14,11 @@ test('local scheduling rejects invalid calendar dates, hours and past times', ()
   assert.equal(localSchedule('bad', '18:30', 0), null);
   assert.equal(localSchedule('2000-01-01', '18:30'), null);
   assert.ok(localSchedule('2027-10-01', '18:30', 0)?.endsWith('Z'));
+});
+test('support controls only offer transitions accepted by the existing RPC', () => {
+  assert.deepEqual(supportTransitions('unassigned'), ['acknowledged', 'in_progress']);
+  assert.deepEqual(supportTransitions('assigned'), ['acknowledged', 'in_progress']);
+  assert.deepEqual(supportTransitions('acknowledged'), ['in_progress', 'resolved']);
+  assert.deepEqual(supportTransitions('in_progress'), ['resolved']);
+  for (const status of ['resolved', 'member_confirmed', 'closed', 'unknown']) assert.deepEqual(supportTransitions(status), []);
 });

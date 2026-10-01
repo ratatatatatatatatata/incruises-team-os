@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, RefreshControl, ScrollView, Switch, Text, View } from 'react-native';
 import { api, ApiError, plainMongolianText as plain, webOrigin, type WorkspacePayload } from '../lib/api';
-import { actionView, localSchedule } from '../lib/action-view';
+import { actionView, localSchedule, supportTransitions } from '../lib/action-view';
 import { Body, Busy, Button, Card, Field, Fold, LinkButton, Title, c } from './ui';
 import { Onboarding } from './onboarding';
 import { officialSources } from '../../../../app/team-os-data';
@@ -9,7 +9,7 @@ import { officialSources } from '../../../../app/team-os-data';
 type Action = (body: Record<string, unknown>, notice?: string) => Promise<boolean>;
 type ActionRow = NonNullable<WorkspacePayload['activeAction']>;
 const statuses: Record<string, string> = { proposed: 'Санал болгосон', accepted: 'Хийхээр сонгосон', started: 'Хийж байгаа', paused: 'Түр завсарласан', blocked: 'Тусламж хэрэгтэй', done: 'Дууссан', superseded: 'Шинэ ажлаар сольсон', submitted: 'Илгээсэн', reviewed: 'Санал ирсэн', assigned: 'Хүн хариуцсан', open: 'Хүлээгдэж байгаа', acknowledged: 'Хүлээн авсан', in_progress: 'Тусалж байгаа', resolved: 'Үр дүнг хүлээж байгаа', closed: 'Хаагдсан', draft: 'Ноорог', review: 'Хяналтад', internal_approved: 'Дотоод хяналт тэнцсэн', corporate_approved: 'Баталгааны эх бүртгэгдсэн' };
-const label = (status: string) => statuses[status] ?? plain(status);
+const label = (status: string) => ({ unassigned: 'Хариуцах хүн оноох шаардлагатай', member_confirmed: 'Гишүүн тус болсон гэж баталсан' }[status] ?? statuses[status] ?? 'Төлөвийг дахин ачаалж шалгана уу');
 const date = (value: string | null) => value ? new Date(value).toLocaleString('mn-MN') : 'Товлоогүй';
 
 function CurrentAction({ row, enabled, act, busy }: { row: ActionRow; enabled: boolean; act: Action; busy: boolean }) {
@@ -81,16 +81,18 @@ function Support({ item, own, assigned, act, busy }: { item: WorkspacePayload['s
   const [note, setNote] = useState('');
   const [next, setNext] = useState('');
   const [error, setError] = useState('');
+  const transitions = supportTransitions(item.status);
   async function advance(nextStatus: string) {
-    const parsed = new Date(next);
-    if (nextStatus === 'resolved' && (note.trim().length < 3 || !Number.isFinite(parsed.getTime()) || parsed.getTime() <= Date.now())) { setError('Өгсөн тусламж болон дахин шалгах ирээдүйн хугацааг оруулаарай.'); return; }
-    setError(''); await act({ action: 'advance_support_request', supportRequestId: item.id, nextStatus, resolutionNote: note, nextCheckAt: Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null });
+    const parsed = localSchedule(next.slice(0, 10), next.slice(11));
+    if (!transitions.includes(nextStatus)) return;
+    if (nextStatus === 'resolved' && (note.trim().length < 3 || !parsed)) { setError('Өгсөн тусламж болон дахин шалгах ирээдүйн хугацааг оруулаарай.'); return; }
+    setError(''); await act({ action: 'advance_support_request', supportRequestId: item.id, nextStatus, resolutionNote: note, nextCheckAt: parsed });
   }
   return <Card title="Тусламжийн хүсэлт"><Body>{item.requestText}</Body><Body>{label(item.status)} · {item.assignedTo ? 'Хариуцах хүнтэй' : 'Хариуцах хүн хараахан оноогоогүй'}</Body><Body>Эргэж шалгах: {date(item.nextCheckAt)}</Body>{!!item.resolutionNote && <Body>{item.resolutionNote}</Body>}
     {own && item.status === 'resolved' && <><Body>Өгсөн тусламж хэрэг болсон уу?</Body><Button disabled={busy} onPress={() => void act({ action: 'confirm_support_request', supportRequestId: item.id, helpful: true })}>Тийм, тус болсон</Button><Button secondary disabled={busy} onPress={() => void act({ action: 'confirm_support_request', supportRequestId: item.id, helpful: false })}>Үгүй, өөр арга хэрэгтэй</Button></>}
-    {!own && assigned && !['closed', 'resolved'].includes(item.status) && <>
-      <Button secondary disabled={busy} onPress={() => void advance('acknowledged')}>Хүлээн авлаа</Button><Button secondary disabled={busy} onPress={() => void advance('in_progress')}>Тусалж эхэллээ</Button>
-      <Field label="Ямар тусламж өгсөн бэ?" multiline value={note} onChangeText={setNote} maxLength={1600} /><Field label="Дахин шалгах өдөр, цаг · 2026-10-15T18:30" value={next} onChangeText={setNext} /><Button disabled={busy} onPress={() => void advance('resolved')}>Тусламж өгсөн · үр дүнг эргэж шалгана</Button>{!!error && <Body>{error}</Body>}
+    {!own && assigned && transitions.length > 0 && <>
+      {transitions.includes('acknowledged') && <Button secondary disabled={busy} onPress={() => void advance('acknowledged')}>Хүлээн авлаа</Button>}{transitions.includes('in_progress') && <Button secondary disabled={busy} onPress={() => void advance('in_progress')}>Тусалж эхэллээ</Button>}
+      {transitions.includes('resolved') && <><Field label="Ямар тусламж өгсөн бэ?" multiline value={note} onChangeText={setNote} maxLength={1600} /><Field label="Дахин шалгах өдөр, цаг · 2026-10-15T18:30" value={next} onChangeText={setNext} maxLength={16} /><Body>Таны төхөөрөмжийн орон нутгийн цагаар хадгална.</Body><Button disabled={busy} onPress={() => void advance('resolved')}>Тусламж өгсөн · үр дүнг эргэж шалгана</Button></>}{!!error && <Body>{error}</Body>}
     </>}
   </Card>;
 }
@@ -100,7 +102,7 @@ function TeamMember({ member, workspace: w, act, busy }: { member: WorkspacePayl
   return <Fold title={`${member.displayName} · ${member.teamName}`}><Body>Урьсан хүн: {member.sponsorName ?? 'Оноогоогүй'} · Дасгалжуулагч: {member.coachName ?? 'Оноогоогүй'}</Body>
     {member.summary ? <><Body>Зорилго: {member.summary.goal30Day}</Body><Body>Цаг: {member.summary.weeklyCapacity}</Body><Body>Саад: {member.summary.primaryBlocker}</Body><Body>Хүссэн тусламж: {member.summary.supportNeeds}</Body><Body>Одоогийн ажил: {plain(member.summary.todayAction)}</Body></> : <Body>Төлөвлөгөөний мэдээлэл хуваалцаагүй эсвэл хараахан бөглөөгүй байна. Хувийн яриаг энд харуулахгүй.</Body>}
     {member.latestCheckin && <Body>Сүүлийн явц: {member.latestCheckin.progressSummary}{'\n'}Саад: {member.latestCheckin.blocker}</Body>}
-    {w.supportRequests.filter(r => r.memberUserId === member.id).map(item => <Support key={item.id} item={item} own={false} assigned={item.assignedTo === w.viewer.userId} act={act} busy={busy} />)}
+    {w.supportRequests.filter(r => r.memberUserId === member.id).map(item => <Support key={item.id} item={item} own={false} assigned={item.assignedTo === w.viewer.userId || w.viewer.role === 'admin'} act={act} busy={busy} />)}
     {w.academyPractices.filter(r => r.memberUserId === member.id).map(item => <Practice key={item.id} item={item} own={false} sharing act={act} busy={busy} />)}
     <Field label="Гишүүнд өгөх товч зөвлөгөө" multiline value={note} onChangeText={setNote} maxLength={1600} /><Field label="Хамт тохирсон дараагийн алхам" value={next} onChangeText={setNext} maxLength={800} /><Body>Энэ зөвлөгөө тухайн гишүүнд харагдана.</Body>
     <Button disabled={busy || note.trim().length < 3} onPress={() => void act({ action: 'add_coach_note', memberUserId: member.id, note, nextAction: next, visibleToMember: true })}>Зөвлөгөөг хадгалах</Button>
@@ -148,7 +150,7 @@ export function Workspace({ userId }: { userId: string }) {
   const disabled = busy || !fresh;
   const mine = w?.viewer.userId;
   const nav = [['today', 'Өнөөдөр'], ['path', 'Миний зам'], ['academy', 'Сургалт'], ...(w?.viewer.role !== 'user' ? [['team', 'Баг']] : []), ['more', 'Бусад']];
-  return <View style={{ flex: 1 }}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 18, gap: 18, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}>
+  return <View style={{ flex: 1 }}><ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 18, gap: 18, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}>
     {!!notice && <Card><Text accessibilityRole="alert" style={{ color: c.ink, fontSize: 17 }}>{notice}</Text></Card>}
     {!fresh && !loading && <Button onPress={() => void load()}>Дахин ачаалах</Button>}
     {loading && !w && <Busy />}

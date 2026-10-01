@@ -19,9 +19,11 @@ Baseline: main `f6c70827e81c98e2dc54ed532eec33474611f2c0`.
 - Web lint, TypeScript and Next production build passed.
 - Mobile TypeScript and iOS prebuild passed.
 - iOS JavaScript/Hermes bundle export passed using explicitly synthetic config. This is **not** a signed IPA or an authenticated integration test.
-- 98 source/unit tests passed, including bearer/cookie isolation, malformed credential/origin handling, SecureStore Unicode/partial writes, current-action presentation and release build identity.
+- 99 source/unit tests passed, including bearer/cookie isolation, malformed credential/origin handling, SecureStore Unicode/partial writes, current-action presentation, support-state transitions and release build identity.
 - Mobile npm audit reported zero findings after patches. This is dependency-scan evidence, not a claim that the whole app is secure.
 - Browser-rendered native login page loaded with no recorded error/warning; PIN, legacy mode, recovery and privacy controls rendered. No account credentials were entered.
+- Login was also visually checked at a 390×844 browser viewport; PIN/legacy mode toggled correctly. This is not a physical iPhone test.
+- Existing preview branch `kzgnvsqysdbdbazchdte` remains ACTIVE_HEALTHY with the mentor migration present, despite historical MIGRATIONS_FAILED branch metadata. The existing transactional mentor runtime matrix passed all 19 checks today; transaction rolled back and remaining synthetic users were confirmed zero. This is direct-RPC evidence, not two live API sessions.
 
 ## Must pass before merge/release
 
