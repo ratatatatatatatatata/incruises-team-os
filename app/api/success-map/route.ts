@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { requestAuth } from "@/lib/supabase/request-auth";
+import { isSameOrigin, RequestAuthError } from "@/lib/supabase/request-policy";
 import { normalizeStarterAnswers, createStarterPlan } from "@/lib/success-map/planner";
 import { personalizeStarterPlan, STARTER_PLAN_MODEL } from "@/lib/success-map/ai";
 import type { AcademyLessonCandidate, StarterAnswers, SuccessMapPlan } from "@/lib/success-map/contracts";
@@ -15,19 +16,12 @@ const payloadSchema = z.object({
   supportSummaryConsent: z.boolean().default(false),
 }).strict();
 
-function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  return Boolean(forwardedHost && new URL(origin).host === forwardedHost);
-}
-
 function errorResponse(message: string, status: number) {
   return Response.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return errorResponse("Хүсэлтийн эх үүсвэр зөвшөөрөгдөөгүй.", 403);
+  if (!isSameOrigin(request)) return errorResponse("Хүсэлтийн эх үүсвэр зөвшөөрөгдөөгүй.", 403);
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (contentLength > 12_000) return errorResponse("Хариултын хэмжээ хэтэрсэн байна.", 413);
 
@@ -53,11 +47,12 @@ export async function POST(request: Request) {
     }, { status: 422, headers: { "Cache-Control": "no-store" } });
   }
 
-  const supabase = await createClient();
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-  const claims = claimsData?.claims as Record<string, unknown> | undefined;
-  const userId = typeof claims?.sub === "string" ? claims.sub : null;
-  if (claimsError || !userId) return errorResponse("Нэвтрэх шаардлагатай.", 401);
+  let auth: Awaited<ReturnType<typeof requestAuth>>;
+  try { auth = await requestAuth(request); }
+  catch (error) {
+    return errorResponse(error instanceof RequestAuthError ? error.message : "Нэвтрэлтийг шалгаж чадсангүй.", error instanceof RequestAuthError ? 401 : 503);
+  }
+  const { supabase, userId } = auth;
 
   const { data: membership, error: membershipError } = await supabase
     .from("team_members")

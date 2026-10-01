@@ -68,3 +68,18 @@ jobs:
         run: npx tsc --noEmit
       - name: Validate Expo configuration
         run: npx expo config --type public
+      - name: Validate Expo SDK dependency compatibility
+        run: npx --yes expo-doctor@1.20.4
+      - name: Validate release icon
+        run: node scripts/check-release-assets.mjs
+      - name: Validate router security patch compatibility
+        run: node scripts/check-router-compat.cjs
+      - name: Audit mobile dependencies
+        run: npm audit --audit-level=moderate
+      - name: Generate iOS project (catch native asset failures)
+        run: npx expo prebuild --platform ios --no-install
+      - name: Bundle iOS UI (synthetic config; not a release artifact)
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_test_placeholder
+        run: npx expo export --platform ios --output-dir "$RUNNER_TEMP/ios-ui-check"
