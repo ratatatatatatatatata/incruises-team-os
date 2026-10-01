@@ -1,4 +1,4 @@
-import type { StarterAnswers } from "@/lib/success-map/contracts";
+import type { StarterAnswers } from "./contracts";
 import { parseWeeklyCapacityMinutes } from "./capacity.mjs";
 export { parseWeeklyCapacityMinutes } from "./capacity.mjs";
 
