@@ -3,8 +3,8 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { policyIds, gatewayInput, ruleReport, validateRanking, type Snapshot, type Learning, type Report } from "./domain";
 
-// Same Gateway model as Starter Success Map; checked against the live catalog 2026-10-08.
-export const CEO_MODEL = "openai/gpt-5.6-luna";
+// Verified through this project’s existing OIDC/free-credit entitlement on 2026-10-08.
+export const CEO_MODEL = "openai/gpt-4.1-mini";
 export async function createCeoReport(snapshot: Snapshot, learning: Learning[]): Promise<Report> {
   const base = ruleReport(snapshot, learning);
   if (!base.orderedPolicyIds.length) return base;
