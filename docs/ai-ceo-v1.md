@@ -1,6 +1,6 @@
 # InSuccess AI CEO v1
 
-Status: implementation candidate, disabled by default. This is an operational decision and learning loop for member progress, not an autonomous corporate officer.
+Status: implementation candidate; enabled on the isolated CEO preview branch, disabled in production. This is an operational decision and learning loop for member progress, not an autonomous corporate officer.
 
 ## Purpose
 
@@ -35,9 +35,11 @@ The last 50 eligible, reviewed outcomes feed subsequent ranking. The rule fallba
 
 ## Gateway reuse: observed on 2026-10-08
 
-The existing Vercel project and OIDC credential were reused; no new API key was created. The full official model catalog contained the existing model `openai/gpt-5.6-luna` with structured-output support. A synthetic request reached Gateway and returned HTTP 403, `no_providers_available`, stating that the free tier cannot use this model and paid credits are required. No successful model generation was observed.
+The existing Vercel project and OIDC credential were reused; no new API key was created. The initial `openai/gpt-5.6-luna` request returned HTTP 403 because that model is unavailable on the team's free-credit tier. The balance API confirmed $5 of unused credits, so a credit purchase was not necessary to resolve this feature's model access.
 
-The application handles this with a visible fallback. The existing Starter Success Map integration was left unchanged. Credential values must remain in ignored environment files or the deployment provider, never source control. Locally pulled OIDC tokens expire; refresh through the linked project's normal Vercel environment flow when needed.
+The CEO model is now `openai/gpt-4.1-mini`. It was selected from the current catalog for structured-output support and verified with the same OIDC credential. The synthetic structured request succeeded through OpenAI, with Gateway metadata confirming zero-data-retention and no-training routing and a cost of $0.0000516. A second smoke test ran the actual `createCeoReport` source against the synthetic demo snapshot and returned `source: ai_gateway`, the expected model, a valid complete policy ranking, and no fallback.
+
+The existing Starter Success Map integration remains unchanged. The visible rule fallback remains available for outages or exhausted entitlements. Credential values stay in ignored environment files or the deployment provider. Locally pulled OIDC tokens expire; refresh through the linked project's normal Vercel environment flow when needed.
 
 ## Verification
 
@@ -45,7 +47,9 @@ The application handles this with a visible fallback. The existing Starter Succe
 - Existing source tests plus eight CEO domain tests: 95 passed.
 - New SQL migration executed in isolated PGlite PostgreSQL with minimal existing-table fixtures: access control, aggregate semantics, reservation limits, lifecycle, immutable finished reports, learning feedback and stopping checks passed. See the delivery evidence for the final assertion count.
 - Browser verification: blocked by browser security policy verification, including on localhost. No browser bypass or replacement UI automation was used. Visual layout, hydration, button interactions and mobile layout remain unverified.
-- No live Supabase migration, authenticated preview flow or production rollout was performed.
+- The additive migration was applied to the existing development Supabase branch. Its security advisor returned no lints. On that real schema, a rolled-back transaction verified member denial, admin snapshot/run/report/start, early measurement denial, stopping, and event history. This is database-role verification, not a browser login test.
+- Preview environment values are scoped only to `codex/insuccess-ai-ceo-v1` and reference the development database. No production migration, environment change or rollout was performed.
+- Browser login, authenticated application API integration, visual layout and mobile interaction remain pending.
 
 Run regular checks from the repository:
 
@@ -60,9 +64,9 @@ For the isolated database test, install `@electric-sql/pglite` in a temporary di
 ## Activation sequence
 
 1. Review the draft PR and additive migration.
-2. Apply the migration to a suitable development database, with no production data copied into test artifacts.
-3. Bind a private preview to that database; enable `CEO_ENABLED`. Test active-admin, ordinary-member, disabled-member and anonymous accounts through the actual login flow.
-4. Resolve the existing Gateway model entitlement/credit blocker and make a successful synthetic request. Do not silently change model or purchase credits.
+2. Development migration is applied; preserve isolation and existing test data.
+3. The CEO preview is bound to that development database with `CEO_ENABLED`. Test active-admin, ordinary-member, disabled-member and anonymous accounts through the actual login flow.
+4. Gateway entitlement is resolved using the verified free-credit-compatible model. Continue to monitor balance and entitlement; do not silently purchase credits.
 5. Verify the browser flows and mobile layout, plus persisted events and reviewed learning. The demo alone is not acceptance evidence.
 6. After explicit production release authorization, deploy the migration/application and enable the feature. Verify the custom domain and provider status. If issues appear, disable the CEO feature flag while preserving all experiment history.
 
