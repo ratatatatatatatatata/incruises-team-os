@@ -1,0 +1,44 @@
+name: Build inSuccess iOS release
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/mobile/**
+      - .github/workflows/mobile-release-build.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: insuccess-ios-release-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: node scripts/check-release-assets.mjs && node scripts/check-router-compat.cjs
+      - name: Build this exact revision for iOS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is not configured."
+            exit 1
+          fi
+          npx eas-cli@24.3.0 build --platform ios --profile production --non-interactive --wait --json > "$RUNNER_TEMP/insuccess-ios-build.json"
+          node scripts/check-eas-build.cjs "$RUNNER_TEMP/insuccess-ios-build.json" "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insuccess-ios-build
+          path: ${{ runner.temp }}/insuccess-ios-build.json

@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { getCurrentTeamOsUser } from "@/app/current-user";
+import { requestAuth } from "@/lib/supabase/request-auth";
+import { bearerToken, isSameOrigin, RequestAuthError } from "@/lib/supabase/request-policy";
 import { getSupabaseConfig } from "@/lib/supabase/config";
-import { createClient } from "@/lib/supabase/server";
+
 
 const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(320),
@@ -16,22 +17,22 @@ function response(body: Record<string, unknown>, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  return Boolean(forwardedHost && new URL(origin).host === forwardedHost);
+async function requireAdmin(request: Request) {
+  try {
+    const context = await requestAuth(request);
+    const { data, error } = await context.supabase.from("team_members").select("role,status").eq("user_id", context.userId).maybeSingle();
+    if (error) throw error;
+    return data?.status === "active" && data.role === "admin" ? context : null;
+  } catch (error) {
+    if (error instanceof RequestAuthError) return null;
+    throw error;
+  }
 }
 
-async function requireAdmin() {
-  const user = await getCurrentTeamOsUser();
-  return user?.access === "active" && user.role === "admin" ? user : null;
-}
-
-export async function GET() {
-  const admin = await requireAdmin();
+export async function GET(request: Request) {
+  const admin = await requireAdmin(request);
   if (!admin) return response({ error: "Admin role required" }, 403);
-  const supabase = await createClient();
+  const { supabase } = admin;
   const { data, error } = await supabase
     .from("member_invitations")
     .select("id,email,display_name,role,status,invited_at,expires_at,accepted_at,sponsor_user_id,coach_user_id,team_name")
@@ -42,18 +43,18 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return response({ error: "Хүсэлтийн эх үүсвэр зөвшөөрөгдөөгүй." }, 403);
+  if (!isSameOrigin(request)) return response({ error: "Хүсэлтийн эх үүсвэр зөвшөөрөгдөөгүй." }, 403);
   if (Number(request.headers.get("content-length") ?? "0") > 8_000) return response({ error: "Хүсэлт хэт том байна." }, 413);
-  const admin = await requireAdmin();
+  const admin = await requireAdmin(request);
   if (!admin) return response({ error: "Admin role required" }, 403);
   const parsed = inviteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return response({ error: "Нэр, имэйл болон эрхийг зөв оруулна уу." }, 400);
 
   const config = getSupabaseConfig();
   if (!config) return response({ error: "Supabase тохиргоо олдсонгүй." }, 503);
-  const supabase = await createClient();
-  const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
+  const { supabase } = admin;
+  const bearer = bearerToken(request.headers.get('authorization'));
+  const accessToken = bearer ?? (await supabase.auth.getSession()).data.session?.access_token;
   if (!accessToken) return response({ error: "Нэвтрэх session дууссан байна." }, 401);
 
   const edgeResponse = await fetch(`${config.url}/functions/v1/invite-member`, {

@@ -1,4 +1,4 @@
-import type { StoredSuccessMap } from "@/lib/success-map/contracts";
+import type { StoredSuccessMap } from "../lib/success-map/contracts";
 
 export const learningLevels = [
   {
