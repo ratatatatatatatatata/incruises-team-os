@@ -141,7 +141,7 @@ test("starter advice is explicit, measurable and upgrade-safe", async () => {
   assert.match(app, /Start\/Done\/Blocked|Эхлэх|Тусламж хэрэгтэй/);
   assert.match(app, /Төлөвлөгөөг тодорхой болгох/);
   assert.match(app, /Ингэвэл дууссан гэж үзнэ/);
-  assert.match(route, /function sameOrigin/);
+  assert.match(route, /if \(!isSameOrigin\(request\)\)/);
   assert.match(route, /contentLength > 32_000/);
 });
 

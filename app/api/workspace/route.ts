@@ -1,5 +1,6 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { createClient } from "@/lib/supabase/server";
+import { requestAuth } from "@/lib/supabase/request-auth";
+import { isSameOrigin, RequestAuthError } from "@/lib/supabase/request-policy";
 import { officialSources } from "../../team-os-data";
 import type { SuccessMapPlan } from "@/lib/success-map/contracts";
 import { createMentorAction, type MentorCheckin } from "@/lib/success-map/mentor";
@@ -11,7 +12,7 @@ const allowedLevelIds = new Set(["l0", "l1", "l2", "l3", "l5"]);
 type TeamRole = "user" | "builder" | "coach" | "director" | "admin";
 
 type AuthContext = {
-  supabase: Awaited<ReturnType<typeof createClient>>;
+  supabase: Awaited<ReturnType<typeof requestAuth>>["supabase"];
   userId: string;
   role: TeamRole;
 };
@@ -161,14 +162,10 @@ class WorkspaceError extends Error {
   }
 }
 
-async function authorizedContext(): Promise<AuthContext> {
+async function authorizedContext(request: Request): Promise<AuthContext> {
   if (!isSupabaseConfigured()) throw new WorkspaceError(503, "Supabase project is not configured");
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
-  const claims = data?.claims as Record<string, unknown> | undefined;
-  const userId = typeof claims?.sub === "string" ? claims.sub : null;
-  if (error || !userId) throw new WorkspaceError(401, "Sign in required");
+  const { supabase, userId } = await requestAuth(request);
 
   const { data: membership, error: membershipError } = await supabase
     .from("team_members")
@@ -191,7 +188,7 @@ function transitionFailure(error: { code?: string; message?: string }): never {
 }
 
 function serverError(error: unknown) {
-  if (error instanceof WorkspaceError) {
+  if (error instanceof WorkspaceError || error instanceof RequestAuthError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
 
@@ -199,16 +196,9 @@ function serverError(error: unknown) {
   return Response.json({ error: "Workspace service unavailable" }, { status: 500 });
 }
 
-function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  const forwardedHost = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  return Boolean(forwardedHost && new URL(origin).host === forwardedHost);
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { supabase, userId, role } = await authorizedContext();
+    const { supabase, userId, role } = await authorizedContext(request);
     const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
     const mentorLoopEnabled = first30DayEnabled && process.env.MENTOR_LOOP_ENABLED === "true";
     const memberActionSelect = mentorLoopEnabled
@@ -587,14 +577,14 @@ export async function GET() {
       academyPractices,
       rankClaims,
       successMap,
-    });
+    }, { headers: { "Cache-Control": "private, no-store", Vary: "Authorization, Cookie" } });
   } catch (error) {
     return serverError(error);
   }
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) {
+  if (!isSameOrigin(request)) {
     return Response.json({ error: "Хүсэлтийн эх үүсвэр зөвшөөрөгдөөгүй." }, { status: 403 });
   }
   const contentLength = Number(request.headers.get("content-length") ?? "0");
@@ -603,7 +593,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { supabase, userId, role } = await authorizedContext();
+    const { supabase, userId, role } = await authorizedContext(request);
     const body = (await request.json()) as Record<string, unknown>;
     const action = String(body.action ?? "");
     const first30DayEnabled = process.env.FIRST_30_DAY_LOOP_ENABLED === "true";
