@@ -6,6 +6,7 @@ import vm from "node:vm";
 import test from "node:test";
 import * as planner from "../lib/success-map/planner.ts";
 import * as clarification from "../lib/success-map/clarification.ts";
+import * as requestPolicy from "../lib/supabase/request-policy.ts";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -99,7 +100,8 @@ test("the persistence boundary rejects AI action text even if personalization re
         },
       };
       const route = compileModule(new URL("../app/api/success-map/route.ts", import.meta.url), {
-        "@/lib/supabase/server": { createClient: async () => supabase },
+        "@/lib/supabase/request-auth": { requestAuth: async () => ({ supabase, userId: "synthetic-user" }) },
+        "@/lib/supabase/request-policy": requestPolicy,
         "@/lib/success-map/planner": planner,
         "@/lib/success-map/clarification": clarification,
         "@/lib/success-map/ai": {
