@@ -1,0 +1,15 @@
+# Personal workspace release verification
+
+The integration runner in `scripts/verify-personal-life-live.mjs` uses two real Supabase Auth sessions and the deployed Next API plus PostgREST. It does not mock authentication or RLS. It refuses accounts unless their synthetic email pattern and `test_fixture=personal-life-20261024` metadata match. It does not create/delete accounts, export credentials, or touch other owners' state.
+
+To run it, explicitly set `LIFE_E2E_ALLOW_WRITES=yes`, an exact `LIFE_E2E_BASE_URL`, and private external JSON files through `LIFE_E2E_CONFIG_FILE` and `LIFE_E2E_USERS_FILE`. Config contains the public Supabase URL/key; accounts contain only the two synthetic fixtures' IDs and login credentials. Keep these files mode 0600 outside Git. `LIFE_E2E_REPORT_FILE` optionally writes the credential-free result.
+
+For a protected preview, set `LIFE_E2E_VERCEL_CLI` to the installed Vercel CLI entry point, `LIFE_E2E_VERCEL_SCOPE` to the verified project team and `LIFE_E2E_HTTP_ARTIFACT_DIR` to a private temporary directory. Each request uses `vercel curl` against the explicit preview URL, with existing Vercel authentication. The runner does not pull environment variables, disable protection, or export bypass keys. Member credentials are passed through stdin rather than process arguments.
+
+Acceptance checks cover separate saves/reloads, no-store responses, anonymous and malformed-token denial, foreign-origin denial, native bearer access, owner spoofing, stale revisions, both directions of cross-owner reads and writes, immutable private snapshots, token refresh and password relogin. Browser checks separately cover actual login, task save, refresh, logout/relogin and account switching. Disabled-member denial is checked in the isolated local stack with the synthetic fixture and restored afterward.
+
+On 2026-10-24, Supabase CLI 2.122.0's official native runtime applied every repository migration in an isolated Apple-silicon environment. The 16 integration groups, disabled-member API/RLS check and browser save/refresh/relogin/account-isolation checks passed there. TypeScript, ESLint and the 107 source/runtime tests also passed. This evidence does not imply universal security or establish the experimental local AI's Mongolian answer quality.
+
+Release rollback target: `dpl_HbzivXgr7XUktE7otqRrUMT3kUFE`, source `a4ff6d4863b7cc3dbcf51c4f4abb03efb9c0e80a`. The new tables are additive; rollback the application to the retained deployment and preserve personal workspaces and all version snapshots. Do not drop tables or remove existing member data as a rollback step.
+
+The same 16 integration groups also passed against hosted preview `dpl_HEK3jm2DYRBbbcATrqdgVqUp9bDv` and the production Supabase Auth/PostgREST database, using only the two newly introduced synthetic fixtures. Existing members' nine success maps retained the exact pre-release fingerprint, and the existing twelve member actions were unchanged. Production security advisors reported no new personal-workspace findings; the pre-existing leaked-password-protection warning remains outside this feature's changes.
