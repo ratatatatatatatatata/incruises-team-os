@@ -133,7 +133,7 @@ test("AI supports semantic interpretation but explicit intent and typed minutes 
   assert.equal(coachReply("Суухаар л өөр зүйл оролдоод байх юм",s,day,initialCoachMemory,{intent:"breakdown",task_id:id(1),strategy:"energy"}).memory.strategy,"start");
   assert.equal(coachReply("7 хоногоо дүгнэе",s,day,initialCoachMemory,{intent:"style",task_id:id(1),strategy:"start"}).memory.intent,"review");
   assert.equal(availableMinutes("5 minut l baina"),5);
-  assert.equal(availableMinutes("0 минут"),null);
+  assert.equal(availableMinutes("0 минут"),0);
 });
 test("model context has bounded candidates and excludes private outcomes, review text and unrelated history", () => {
   const s=fixture();s.tasks[3].outcome="PRIVATE_OUTCOME_SENTINEL";s.reviews=[{week:day,win:"PRIVATE_REVIEW_SENTINEL",obstacle:"",next:""}];
@@ -169,4 +169,19 @@ test("negated tiredness is not turned into a fatigue assertion", () => {
 test("a small repeated habit is not confused with breaking down an existing task", () => {
   assert.equal(coachReply("Өдөр болгон нэг жижиг зүйлээ таслахгүй давтаж хэвшмээр байна",fixture(),day).memory.intent,"habit");
   assert.equal(coachReply("Зорилгын үр дүнгээ яаж хэмжих вэ?",fixture(),day).memory.intent,"goal");
+});
+test("pronouns do not falsely select a task and a stuck introduction is treated as work to start", () => {
+  const s=fixture();
+  const question="Бусдад өөрийгөө цэгцтэй, итгэлтэй хүн гэж мэдрүүлмээр байна";
+  assert.equal(coachReply(question,s,day).needsInterpretation,true);
+  assert.equal(coachReply(question,s,day,initialCoachMemory,{intent:"style",task_id:"",strategy:"start"}).memory.intent,"style");
+  assert.equal(coachReply("Танилцуулгаа бичиж эхлэхэд хэцүү байна",s,day).memory.intent,"breakdown");
+});
+test("zero available minutes offers no new work and unknown habit anchors remain questions", () => {
+  const s=fixture();assert.doesNotMatch(coachReply("Надад 0 минут байна",s,day).content,/Эхний \d+ минут/);
+  let r=coachReply("Дадлаа тогтмол болгоё",s,day);
+  r=coachReply("Мэдэхгүй",s,day,r.memory);
+  assert.equal(r.memory.awaiting,"habit_anchor");assert.doesNotMatch(r.content,/Тэгвэл таны хэлсэн/);
+  r=coachReply("Орой шүдээ угаасны дараа",s,day,r.memory);
+  assert.match(r.content,/гэсэн мөчтэй дадлаа холбоё/);
 });

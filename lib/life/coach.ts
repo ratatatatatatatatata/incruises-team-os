@@ -25,7 +25,7 @@ const quote = (s: string) => `«${s}»`;
 export function availableMinutes(question: string) {
   const q = normalize(question);
   const match = q.match(/(?:^|\s)(\d{1,3})\s*(?:минут|мин|minut|minutes?|mins?)(?:\s|$)/u);
-  return match && Number(match[1]) > 0 ? Math.min(480, Number(match[1])) : null;
+  return match ? Math.min(480, Number(match[1])) : null;
 }
 
 export function coachCandidates(state: LifeState, day: string, memory = initialCoachMemory) {
@@ -41,9 +41,9 @@ function explicitIntent(q: string): CoachIntent | null {
   if (/хэмж/u.test(q) && /зорилго|зорилгын|хүрэх үр дүн/u.test(q)) return "goal";
   if (/дүгн|dugn|review|үр дүн|ахиц/u.test(q)) return "review";
   if (/manifest|манифест|мөрөөд|төсөөл|muruud|murood/u.test(q)) return "vision";
-  if (/style|image|хэв маяг|дүр төрх|танилцуул|хувцас|huvtsas/u.test(q)) return "style";
   if (/дадал|дадл|habit|dadal|хэвш|таслахгүй.*давт/u.test(q)) return "habit";
   if (/гац|gats|хэцүү|hetsuu|хойшлуул|жижиг.*болго|ажл.*жижиг|задал|эхэлж чад|эхлэхээ|ядар|ядра|хүчгүй|залху|hoishluul|zad[al]|яаж эхлэх|ажлаа эхэлье|эхлэл нь|хуваая/u.test(q)) return "breakdown";
+  if (/style|image|хэв маяг|дүр төрх|танилцуул|хувцас|huvtsas/u.test(q)) return "style";
   if (/цаг хүрэхгүй|амжихгүй|amjihgui|төлөвлө|төлөвлөгөө|tuluvl|хуваарь|маргааш|margaash|schedule/u.test(q)) return "schedule";
   if (/зорилго|zorilgo|goal/u.test(q)) return "goal";
   if (/одоо|өнөөдөр|юу хийх|дараа нь|odoo|unuudur|юунаас эхлэх|эхэлье/u.test(q)) return "next";
@@ -96,7 +96,7 @@ function selectedTask(question: string, state: LifeState, memory: CoachMemory, c
   if (full) return full;
   const numbered = q.match(/^(\d{1,2})(?:\s*(?:дэх|дахь|эхний|ажил|нь|ажлаа))?$/u);
   if (numbered) return state.tasks.find(t => t.id === memory.choices?.[Number(numbered[1]) - 1]);
-  const words = q.split(" ").filter(w => w.length >= 4 && !/^(ажил|ажла|хийх|эхл|жижиг|одоо|минут|байна|надад|болго|болох|төлөв)/u.test(w));
+  const words = q.split(" ").filter(w => w.length >= 4 && !/^(ажил|ажла|хийх|эхл|жижиг|одоо|минут|байна|надад|болго|болох|төлөв|өөрийгөө|өөрийн|өөртөө|бусдад|байдаг)/u.test(w));
   const scored = state.tasks.map(t => ({ t, n: words.filter(w => normalize(t.title).split(" ").some(tw => tw.startsWith(w) || w.startsWith(tw) && tw.length >= 4)).length })).filter(v => v.n > 0).sort((a,b) => b.n - a.n);
   if (scored[0] && (!scored[1] || scored[0].n > scored[1].n)) return scored[0].t;
   if (decision?.task_id && ["next", "breakdown", "schedule"].includes(decision.intent)) return candidates.find(t => t.id === decision.task_id);
@@ -135,6 +135,10 @@ export function coachReply(question: string, state: LifeState, day: string, prev
     return result("Энэ нь хувийн төлөвлөлтийн туслах тул эмчилгээ, хөрөнгө оруулалтын шийдвэрийг таны өмнөөс гаргахгүй. Харин мэргэжлийн хүнээс асуух асуултаа бэлдэх эсвэл хийх ажлаа төлөвлөхөд тусалж чадна.");
 
   const minutes = availableMinutes(question);
+  if (minutes === 0) {
+    memory.minutes = 0;
+    return result("Одоо цаг гаргах боломжгүй гэж ойлголоо. Нэмж ажил санал болгохгүй. Завтай болох үедээ одоо байгаа ажлынхаа хугацааг өөрт тохируулан сонгож болно.");
+  }
   const candidates = coachCandidates(state, day, previous);
   const task = selectedTask(question, state, previous, candidates, decision);
   const explicit = explicitIntent(q);
@@ -142,7 +146,13 @@ export function coachReply(question: string, state: LifeState, day: string, prev
     memory.intent = "clarify"; memory.taskId = null; memory.minutes = null; memory.choices = undefined;
     return result("Тэгвэл дахин тодруулъя. Ажлынхаа нэр эсвэл яг юун дээр тусламж хүсэж байгаагаа нэг өгүүлбэрээр бичээрэй.", ["Гацсан ажлаа жижиг болгоё", "Миний style image", "Manifest яаж хийх вэ?"]);
   }
-  if (!explicit && previous.awaiting === "habit_anchor" && !/^(тийм|үгүй)$/u.test(q)) {
+  if (!explicit && previous.awaiting && /^(мэдэхгүй|тийм|үгүй|ойлгохгүй)$/u.test(q)) {
+    memory.awaiting = previous.awaiting;
+    return previous.awaiting === "habit_anchor"
+      ? result("Зүгээр. Одоо хийдэг нэг үйлдэлтэй холбоход хялбар. Дадлаа доорх аль мөчийн дараа хийхэд тохирох вэ?", ["Орой шүдээ угаасны дараа", "Өглөө цайгаа уусны дараа"])
+      : result("Өөрийн хянах нэг үйлдлийг тоолж үзье. Жишээ: долоо хоногт 3 удаа давтах, нэг ноорог бэлэн болгох. Таны зорилгод ямар үр дүн тохирох вэ?", ["Долоо хоногт 3 удаа давтсан байна", "Нэг эхний ноорог бэлэн болсон байна"]);
+  }
+  if (!explicit && minutes === null && previous.awaiting === "habit_anchor") {
     memory.intent = "habit";
     return result(`Тэгвэл таны хэлсэн ${quote(question.trim().slice(0, 240))} гэсэн мөчтэй дадлаа холбоё.\nНоорог: «Тэр үйлдлийн дараа би ${state.habit.title || "сонгосон жижиг дадлаа"} хийнэ». Эхний хувилбар нь 2 минутаас ихгүй байг.\nЭнэ нь ярилцаж гаргасан санал; хадгалаагүй. «Өнөөдөр» хэсгийн дадлын нэрээ өөрөө засаж, хийсэн өдрөө тэмдэглээрэй.`, ["Одоо юу хийх вэ?", "7 хоногоо дүгнэе"]);
   }
