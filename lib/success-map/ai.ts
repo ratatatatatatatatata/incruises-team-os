@@ -4,6 +4,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { StarterAnswers, SuccessMapPlan } from "./contracts";
 import { actionConflictsWithAnswers, adviceNeedsSafetyFallback } from "./planner";
+import { PAID_AI_ALLOWED } from "./cost-policy";
 
 export const STARTER_PLAN_MODEL = "openai/gpt-5.6-luna";
 
@@ -33,6 +34,9 @@ export async function personalizeStarterPlan(
   answers: StarterAnswers,
   basePlan: SuccessMapPlan,
 ): Promise<{ plan: SuccessMapPlan; usedAi: boolean; fallbackReason: string | null }> {
+  if (!PAID_AI_ALLOWED) {
+    return { plan: basePlan, usedAi: false, fallbackReason: "AI ашиглалтын төлбөр үүсгэхгүй байхын тулд төлбөргүй чиглүүлэгчээр төлөвлөгөөг гаргалаа. Гаднын AI үйлчилгээ ашиглаагүй." };
+  }
   if (!hasGatewayCredential()) {
     return { plan: basePlan, usedAi: false, fallbackReason: "Хиймэл оюуны үйлчилгээ одоогоор холбогдоогүй тул үндсэн төлөвлөгөөг ашиглана." };
   }

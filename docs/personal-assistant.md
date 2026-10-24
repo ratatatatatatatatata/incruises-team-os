@@ -20,6 +20,7 @@ The default guide requires no model download. The optional model needs substanti
 - Only model assets are downloaded from the configured model hosts. Conversation and workspace context are processed locally.
 - Model context contains a bounded set of planned task titles and dates, the goal, a small conversation memory and the last two user questions. It excludes recorded outcomes, review prose and account identifiers.
 - This removes provider AI usage charges for this implementation. It does not remove ordinary site hosting, storage, network or device costs.
+- The legacy starter-plan enhancement is also blocked by a server-side cost policy, even if a member previously consented and gateway or platform OIDC credentials exist. Existing credentials and historical consent records are retained; the form explains that the guide is used instead.
 
 ## Verification
 

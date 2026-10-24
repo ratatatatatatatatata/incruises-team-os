@@ -1,5 +1,7 @@
 "use client";
 
+import { PAID_AI_ALLOWED } from "@/lib/success-map/cost-policy";
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StarterAnswers } from "@/lib/success-map/contracts";
@@ -118,7 +120,7 @@ export function OnboardingForm({ displayName, initialAnswers, initialAiConsent, 
 
     setSaving(true);
     setError("");
-    setStatus(aiConsent ? "Хиймэл оюуны тусламжтай төлөвлөгөөг найруулж байна..." : "Төлөвлөгөөг боловсруулж байна...");
+    setStatus(PAID_AI_ALLOWED && aiConsent ? "Хиймэл оюуны тусламжтай төлөвлөгөөг найруулж байна..." : "Төлөвлөгөөг боловсруулж байна...");
     try {
       const response = await fetch("/api/success-map", {
         method: "POST",
@@ -196,10 +198,10 @@ export function OnboardingForm({ displayName, initialAnswers, initialAiConsent, 
           );
         })}
 
-        <label className="ai-consent-card">
+        {PAID_AI_ALLOWED ? <label className="ai-consent-card">
           <input type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} />
           <span><strong>Хиймэл оюунаар зөвлөгөөг илүү ойлгомжтой найруулах</strong><small>Зөвшөөрвөл зөвхөн дээрх 5 хариулт, суурь төлөвлөгөө болон санал болгосон хичээлийн мэдээлэл гаднын хиймэл оюуны үйлчилгээнд дамжина. Таны бүртгэлийн имэйл, хэрэглэгчийн дугаарыг тусад нь дамжуулахгүй; өөрөө хариултдаа бичсэн хувийн мэдээлэл дамжиж болзошгүй. Энэ зөвшөөрөл нь цаашдын явц, ярианы түүхийг хамрахгүй. Зөвшөөрөхгүй ч эхний төлөвлөгөө гарна.</small></span>
-        </label>
+        </label> : <p className="ai-consent-card"><span><strong>Төлбөргүй чиглүүлэгчээр төлөвлөгөөг гаргана</strong><small>Энэ хэсэг гаднын AI үйлчилгээ ашиглахгүй. Өмнө өгсөн AI зөвшөөрөл байсан ч төлбөртэй дуудлага хийхгүй. Төхөөрөмж дээр ажиллах нэмэлт AI-г хувийн орон зайн «Туслах» хэсгээс сонгож болно.</small></span></p>}
 
         <label className="ai-consent-card">
           <input type="checkbox" checked={supportSummaryConsent} onChange={(event) => setSupportSummaryConsent(event.target.checked)} />
