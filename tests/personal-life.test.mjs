@@ -7,6 +7,8 @@ import {
   suggestion,
   weeklyUsed,
   weekStart,
+  capacityForWeek,
+  weeklyMinutesFromAnswer,
 } from "../lib/life/domain.ts";
 
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -18,6 +20,18 @@ const task = (n, date, minutes, status = "planned") => ({
   title: "Танилцуулгаа бичих",
   time: "20:30",
   outcome: "",
+});
+test("weekly budgets preserve past capacity when this week's capacity changes, and imported hours are not capped at 45", () => {
+  const state = emptyLife();
+  state.goal.weeklyMinutes = 5;
+  state.weekBudgets = { "2026-10-12": 120, "2026-10-19": 5 };
+  state.tasks = [task(1, "2026-10-15", 120, "done"), task(2, "2026-10-24", 5)];
+  assert.equal(lifeSchema.safeParse(state).success, true);
+  assert.equal(capacityForWeek(state, "2026-10-15"), 120);
+  assert.equal(capacityForWeek(state, "2026-10-24"), 5);
+  assert.equal(weeklyMinutesFromAnswer("7 хоногт 2 цаг."), 120);
+  assert.equal(weeklyMinutesFromAnswer("15 minut"), 15);
+  assert.equal(weeklyMinutesFromAnswer("өдөр бүр 10 минут"), null);
 });
 test("capacity counts all scheduled and completed tasks in the same local week, paused work releases time", () => {
   const state = emptyLife();

@@ -122,3 +122,16 @@ Live deployment, production database нь энэ аудитын турш өөр�
 Одоогийн Vercel rollback target: `dpl_HbzivXgr7XUktE7otqRrUMT3kUFE` / `a4ff6d4`. Шинэ нүүрийн flag-г унтраагаад хуучин орчныг буцааж харуулах боломжтой. Шинэ хувийн хүснэгт/хувилбаруудыг хадгална; rollback нэрээр устгахгүй. Энэ удаагийн DB backup restore туршигдаагүй.
 
 Production security advisor-д leaked-password protection OFF гэсэн өмнө нь баталсан PIN policy-ийн warning байна. Үүнийг хэрэглэгчийн эрхгүйгээр өөрчлөөгүй. Dependency audit нь хуучин хувилбарт known advisory илрүүлсэн; exploit хийж батлах туршилт хийгээгүй. Final package version ба шалгалтын үр дүнг delivery report-д бүртгэнэ.
+
+## Энэ ажлын баталгаажуулалтын шинэчлэлт
+
+- Шинэ branch: `codex/personal-life-workspace-20261024`, [draft PR #24](https://github.com/ratatatatatatatatata/incruises-team-os/pull/24). Хэрэглэгч public repository-д код, migration, aggregate audit байрлуулахыг тусгайлан зөвшөөрсний дараа илгээсэн.
+- Анхны preview `dpl_677dssinSmcnoNqNnKarmR2rqwHW` READY; hosted `/life-demo` браузерт бодитоор нээгдсэн. Анхны commit-ийн GitHub `verify-web`, `verify-mobile` хоёулаа SUCCESS. Дараагийн жижиг засваруудын эцсийн SHA/CI-г delivery summary-д тусад нь бүртгэнэ.
+- Next.js `16.4.3`, Zod `4.6.7`, AI SDK `7.0.152`; `source-map-js@1.2.2`, `undici@7.30.1` patch тогтоосон. Шалгасан үеийн production dependency audit: **No known vulnerabilities found**. Энэ нь системийн бүх аюулгүй байдлын баталгаа биш.
+- Browser: хийсэн үр дүн → дараагийн санал, нийт минут хэтрүүлэлтийг зогсоох, мөрөөдөл/хэв маяг → ажил бэлдэх, 390px өргөн дэх цэс ба layout шалгагдсан. Тестүүд зөвхөн зохиомол өгөгдөлтэй. Hosted account save/refresh нь одоогоор баталгаажаагүй.
+- Цаг засах талбарын browser сорилоор native time утгыг хадгалах заагт алдаа илэрсэн. FormData-аас илгээсэн өдөр/минут/цагийг авч хадгалдаг засвар хийсэн. Өмнөх ажлын ID-г хадгалж давхар ажил үүсгэхгүй.
+- Долоо хоногийн цагийг өөрчлөхөд өмнөх долоо хоногийн дууссан ажлын түүхийг шинэ бага хязгаараар буруутгахгүй per-week budget нэмсэн. Хуучин “2 цаг” хариуг шинэ workspace руу 45 минут болгон таслахгүйгээр 120 минут гэж авч байна.
+- Qwen3 4B нь бодит браузерт татагдаж ассан. “Одоо юу хийх вэ?” гэсэн туршсан хариу дутуу/чанарын шалгалтад тохироогүй тул бэлэн чиглүүлэгч рүү зөв буцсан. Иймээс **үнэгүй Монгол generative AI туслахын чанарын acceptance хангагдсан гэж тайлагнаагүй**. Төхөөрөмж бүр дээр эсвэл төлбөртэй том загварын түвшинд ажиллана гэж амлахгүй. Энэ боломж туршилтын хэвээр; үндсэн аппын хэрэгслийг түүнээс хамааралгүй ашиглана.
+- Суулгасан AI загварын cache нь тухайн браузерт үлдэж болно. Тест дуусахад ажиллаж буй worker-ийг зогсооно; user data/cache-г зөвшөөрөлгүй устгахгүй.
+
+Production release хийхээс өмнө hosted development-account хоёр session-ийн хадгалалт/refresh/privacy, тохирох/тохирохгүй төхөөрөмжийн AI fallback, хэрэглэгчийн 3 минутын хэрэглээний acceptance, migration ба rollback review-г хаана. Одоогийн deliverable бол **туршиж болох шинэ чиглэлийн draft preview**, client-ready production release биш.

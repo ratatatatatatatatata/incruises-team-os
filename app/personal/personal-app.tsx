@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   areaLabels,
+  capacityForWeek,
   areas,
   emptyLife,
   lifeSchema,
@@ -210,19 +211,33 @@ export function PersonalApp({
       setSaving(false);
     }
   }
-  async function addTask(event: FormEvent) {
+  async function addTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!task.title.trim()) return;
+    const fields = new FormData(event.currentTarget);
     const next: LifeTask = {
       ...task,
-      date: task.date || day,
+      date: String(fields.get("date") || day),
+      time: String(fields.get("time") ?? task.time),
+      minutes: Number(fields.get("minutes") ?? task.minutes),
       title: task.title.trim(),
       id: editingTaskId ?? crypto.randomUUID(),
       status: "planned",
       outcome: "",
     };
-    const nextTasks = editingTaskId ? state.tasks.map((item) => item.id === editingTaskId ? next : item) : [...state.tasks, next];
-    if (await save({ ...state, tasks: nextTasks })) {
+    const nextTasks = editingTaskId
+      ? state.tasks.map((item) => (item.id === editingTaskId ? next : item))
+      : [...state.tasks, next];
+    if (
+      await save({
+        ...state,
+        weekBudgets: {
+          ...state.weekBudgets,
+          [weekStart(next.date)]: capacityForWeek(state, next.date),
+        },
+        tasks: nextTasks,
+      })
+    ) {
       setTask({ title: "", minutes: 10, time: "", date: "" });
       setEditingTaskId(null);
     }
@@ -237,9 +252,16 @@ export function PersonalApp({
   }
   function editTask(item: LifeTask) {
     setEditingTaskId(item.id);
-    setTask({ title: item.title, minutes: item.minutes, time: item.time, date: item.date });
+    setTask({
+      title: item.title,
+      minutes: item.minutes,
+      time: item.time,
+      date: item.date,
+    });
     setTab("today");
-    setNotice("Ажил, өдөр, цагаа доорх талбарт засаж хадгалаарай. Өмнөх хувилбарын түүх хадгалагдана.");
+    setNotice(
+      "Ажил, өдөр, цагаа доорх талбарт засаж хадгалаарай. Өмнөх хувилбарын түүх хадгалагдана.",
+    );
   }
   async function complete(item: LifeTask) {
     const outcome = result[item.id]?.trim();
@@ -267,7 +289,8 @@ export function PersonalApp({
     (t) => t.date < day && t.status === "planned",
   );
   const used = day ? weeklyUsed(state, day) : 0;
-  const remaining = Math.max(0, state.goal.weeklyMinutes - used);
+  const capacity = day ? capacityForWeek(state, day) : state.goal.weeklyMinutes;
+  const remaining = Math.max(0, capacity - used);
   const next = day ? suggestion(state, day) : null;
   const week = day ? weekStart(day) : "";
   const weekTasks = state.tasks.filter(
@@ -396,12 +419,12 @@ export function PersonalApp({
                       <div>
                         <span
                           style={{
-                            width: `${Math.min(100, (used / state.goal.weeklyMinutes) * 100)}%`,
+                            width: `${Math.min(100, (used / capacity) * 100)}%`,
                           }}
                         />
                       </div>
                       <small>
-                        {used} / {state.goal.weeklyMinutes} минут төлөвлөсөн
+                        {used} / {capacity} минут төлөвлөсөн
                       </small>
                     </div>
                   </div>
@@ -542,7 +565,17 @@ export function PersonalApp({
                                 </div>
                               </>
                             )}
-                            {item.status !== "done" && <button className="life-link-button" disabled={disabled} onClick={() => editTask(item)}>{item.status === "paused" ? "Засаж үргэлжлүүлэх" : "Ажил, цагаа засах"}</button>}
+                            {item.status !== "done" && (
+                              <button
+                                className="life-link-button"
+                                disabled={disabled}
+                                onClick={() => editTask(item)}
+                              >
+                                {item.status === "paused"
+                                  ? "Засаж үргэлжлүүлэх"
+                                  : "Ажил, цагаа засах"}
+                              </button>
+                            )}
                           </article>
                         ))}
                       </div>
@@ -589,6 +622,7 @@ export function PersonalApp({
                             Өдөр
                             <input
                               type="date"
+                              name="date"
                               aria-label="Ажлын өдөр"
                               value={task.date || day}
                               onChange={(e) =>
@@ -601,6 +635,7 @@ export function PersonalApp({
                             Хэдэн минут?
                             <input
                               type="number"
+                              name="minutes"
                               min={1}
                               max={480}
                               value={task.minutes}
@@ -617,6 +652,7 @@ export function PersonalApp({
                             Эхлэх цаг
                             <input
                               type="time"
+                              name="time"
                               value={task.time}
                               onChange={(e) =>
                                 setTask({ ...task, time: e.target.value })
@@ -628,9 +664,27 @@ export function PersonalApp({
                           className="life-primary"
                           disabled={disabled || !task.title.trim()}
                         >
-                          {editingTaskId ? "Ажлын өөрчлөлтийг хадгалах" : "Ажил нэмэх +"}
+                          {editingTaskId
+                            ? "Ажлын өөрчлөлтийг хадгалах"
+                            : "Ажил нэмэх +"}
                         </button>
-                        {editingTaskId && <button type="button" className="life-link-button" onClick={() => { setEditingTaskId(null); setTask({title:"",minutes:10,time:"",date:""}); }}>Засахаас буцах</button>}
+                        {editingTaskId && (
+                          <button
+                            type="button"
+                            className="life-link-button"
+                            onClick={() => {
+                              setEditingTaskId(null);
+                              setTask({
+                                title: "",
+                                minutes: 10,
+                                time: "",
+                                date: "",
+                              });
+                            }}
+                          >
+                            Засахаас буцах
+                          </button>
+                        )}
                         <p className="life-hint">
                           Энэ 7 хоногт {remaining} минутын боломж үлдсэн. Цаг нь
                           апп дотор харагдана; мэдэгдэл илгээхгүй.
@@ -813,6 +867,10 @@ export function PersonalApp({
                           onChange={(e) =>
                             change({
                               ...state,
+                              weekBudgets: {
+                                ...state.weekBudgets,
+                                [week]: Number(e.target.value),
+                              },
                               goal: {
                                 ...state.goal,
                                 weeklyMinutes: Number(e.target.value),
@@ -836,8 +894,8 @@ export function PersonalApp({
                     <section className="life-panel">
                       <h2>Энэ 7 хоног</h2>
                       <p>
-                        {done.length} ажил дууссан · {used}/
-                        {state.goal.weeklyMinutes} минут төлөвлөсөн
+                        {done.length} ажил дууссан · {used}/{capacity} минут
+                        төлөвлөсөн
                       </p>
                       {weekTasks.length === 0 && (
                         <p className="life-hint">

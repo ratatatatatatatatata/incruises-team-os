@@ -4,7 +4,7 @@ import { getCurrentTeamOsUser } from "./current-user";
 import { TeamOsApp } from "./team-os-app";
 import { PersonalApp } from "./personal/personal-app";
 import { createClient } from "@/lib/supabase/server";
-import { parseWeeklyCapacityMinutes } from "@/lib/success-map/capacity.mjs";
+import { weeklyMinutesFromAnswer } from "@/lib/life/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,7 @@ export default async function Home({
         name={user.displayName}
         initialGoal={data?.goal_30_day ?? ""}
         initialMinutes={
-          parseWeeklyCapacityMinutes(data?.weekly_capacity ?? "") ?? 60
+          weeklyMinutesFromAnswer(data?.weekly_capacity ?? "") ?? 60
         }
       />
     );
