@@ -7,6 +7,7 @@ import test from "node:test";
 import * as planner from "../lib/success-map/planner.ts";
 import * as clarification from "../lib/success-map/clarification.ts";
 import * as requestPolicy from "../lib/supabase/request-policy.ts";
+import * as costPolicy from "../lib/success-map/cost-policy.ts";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -52,6 +53,9 @@ test("AI-echoed private Q1 text is kept out of initial and future shared action 
   const ai = compileModule(new URL("../lib/success-map/ai.ts", import.meta.url), {
     "server-only": {},
     "./planner": planner,
+    // Exercise the retained privacy defenses independently of the production
+    // cost gate. This mock never enables a real provider or network call.
+    "./cost-policy": { PAID_AI_ALLOWED: true },
     ai: {
       Output: { object: (value) => value },
       generateText: async () => {
@@ -74,6 +78,20 @@ test("AI-echoed private Q1 text is kept out of initial and future shared action 
   assert.ok(result.plan.profileSummary.includes(sentinel));
   assert.ok(!JSON.stringify(shareableActions(result.plan)).includes(sentinel));
   assert.deepEqual(shareableActions(result.plan), shareableActions(basePlan));
+});
+
+test("owner zero-cost policy blocks legacy generation even with gateway and platform OIDC credentials", async () => {
+  const basePlan = planner.createStarterPlan(answers, []);
+  for (const env of [{}, {AI_GATEWAY_API_KEY:"synthetic-test-only"}, {VERCEL_OIDC_TOKEN:"synthetic-test-only"}, {AI_GATEWAY_API_KEY:"synthetic-test-only",VERCEL_OIDC_TOKEN:"synthetic-test-only"}]) {
+    let calls=0;
+    const ai=compileModule(new URL("../lib/success-map/ai.ts",import.meta.url), {
+      "server-only": {}, "./planner": planner, "./cost-policy": costPolicy,
+      ai: {Output:{object:v=>v},generateText:async()=>{calls++;throw new Error("Paid generation must never run");}},
+    },env);
+    const result=await ai.personalizeStarterPlan(answers,basePlan);
+    assert.equal(calls,0);assert.equal(result.usedAi,false);
+    assert.deepEqual(result.plan,basePlan);assert.match(result.fallbackReason,/Гаднын AI үйлчилгээ ашиглаагүй/);
+  }
 });
 
 test("the persistence boundary rejects AI action text even if personalization returns it", async () => {
