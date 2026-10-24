@@ -1,0 +1,6 @@
+# Configure deployed environments in Vercel; never upload local env files.
+.env*
+**/.env*
+supabase/.temp/
+outputs/
+work/
